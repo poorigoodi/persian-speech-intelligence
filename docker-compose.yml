@@ -1,0 +1,78 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: psi
+      POSTGRES_PASSWORD: psi_secret
+      POSTGRES_DB: persian_speech
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U psi -d persian_speech"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://psi:psi_secret@db:5432/persian_speech
+      STORAGE_DIR: /app/storage
+      UPLOAD_DIR: /app/storage/uploads
+      TEMP_DIR: /app/storage/temp
+      VECTOR_INDEX_DIR: /app/storage/vector_indexes
+      CORS_ORIGINS: http://localhost:8501,http://127.0.0.1:8501
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/storage
+      - model_cache:/root/.cache
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://psi:psi_secret@db:5432/persian_speech
+      STORAGE_DIR: /app/storage
+      UPLOAD_DIR: /app/storage/uploads
+      TEMP_DIR: /app/storage/temp
+      VECTOR_INDEX_DIR: /app/storage/vector_indexes
+    volumes:
+      - ./storage:/app/storage
+      - model_cache:/root/.cache
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      BACKEND_URL: http://backend:8000
+      API_PREFIX: /api/v1
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  model_cache:
