@@ -18,13 +18,22 @@ from app.db.repositories import (
     TranscriptRepository,
 )
 from app.db.session import SessionLocal
-from app.llm.factory import get_llm_provider, get_sentiment_llm_provider
+from app.llm.factory import (
+    get_asr_polish_llm_provider,
+    get_llm_provider,
+    get_sentiment_llm_provider,
+)
 from app.models.recording import ProcessingStatus
 from app.models.transcript import TranscriptSegment
 from app.services.analysis_pipeline import AnalysisPipeline
+from app.services.asr_polish_service import AsrPolishService
 from app.services.audio_service import AudioService
 from app.services.embedding_service import EmbeddingService
-from app.services.transcription_service import TranscriptionService
+from app.services.transcription_service import (
+    TranscriptSegmentResult,
+    TranscriptionResult,
+    TranscriptionService,
+)
 
 logger = get_logger(__name__)
 
@@ -112,6 +121,7 @@ class ProcessingWorker:
             db.commit()
 
             result = self.transcription_service.transcribe(wav_path)
+            result = await self._maybe_polish_asr(result)
             recording.language = result.language
             if result.duration_seconds:
                 recording.duration_seconds = result.duration_seconds
@@ -219,6 +229,50 @@ class ProcessingWorker:
         finally:
             self.audio_service.cleanup_temp(recording_id)
             db.close()
+
+    async def _maybe_polish_asr(
+        self, result: TranscriptionResult
+    ) -> TranscriptionResult:
+        """Rule cleanup is already applied in TranscriptionService.
+
+        For short clips (or few segments), optionally run an LLM polish pass to
+        fix garbled Persian tech terms (e.g. حوشمسنوی → هوش مصنوعی).
+        """
+        if not result.segments:
+            return result
+        if not self.settings.asr_llm_polish:
+            return result
+
+        # Prefer polish when alignment is cheap (short / few segments).
+        short_clip = (result.duration_seconds or 0) <= 45.0 or len(result.segments) <= 2
+        if not short_clip:
+            logger.info("Skipping ASR LLM polish for long multi-segment transcript.")
+            return result
+
+        try:
+            llm = get_asr_polish_llm_provider(self.settings)
+            polished_text = await AsrPolishService(llm).polish(
+                result.full_text, use_llm=True
+            )
+        except Exception as exc:
+            logger.warning("ASR polish skipped: %s", exc)
+            return result
+
+        if not polished_text or polished_text == result.full_text_normalized:
+            return result
+
+        start = result.segments[0].start
+        end = result.segments[-1].end
+        result.segments = [
+            TranscriptSegmentResult(
+                start=start,
+                end=end,
+                text=polished_text,
+                normalized_text=polished_text,
+            )
+        ]
+        logger.info("ASR LLM polish applied (%s chars).", len(polished_text))
+        return result
 
     def _fail_job(
         self,

@@ -20,7 +20,7 @@ PostgreSQL or SQLite (jobs/recordings)
 Background Worker
         |
         +--> Audio preprocess (FFmpeg)
-        +--> ASR (Faster-Whisper Medium, GPU)
+        +--> ASR (Farsi Faster-Whisper large-v3, GPU) + rule/LLM polish
         +--> Normalization
         +--> Embeddings (multilingual-e5-small, CPU) + FAISS (CPU)
         +--> Combined LLM analysis — Qwen3-2B JSON (summary/topics/entities/sentiment)
@@ -37,8 +37,9 @@ FastAPI read/chat/export endpoints
 
 | بخش | مدل | محل اجرا |
 |---|---|---|
-| Speech-to-Text | Faster-Whisper Medium | GPU |
-| LLM (analysis / QA) | Qwen3-2B-Instruct-2507 (Q4) | GPU |
+| Speech-to-Text | Farsi Faster-Whisper large-v3 | GPU |
+| LLM (analysis / QA) | Qwen3-2B-Instruct-2507 (Q4) or fine-tuned LoRA merge | GPU |
+| LLM (ASR polish) | same server; optional `ASR_POLISH_MODEL` LoRA | GPU |
 | Embedding | multilingual-e5-small | CPU |
 | Reranker | — | not used |
 | Sentiment | included in combined call; optional Qwen3-4B | GPU |
@@ -57,14 +58,13 @@ FastAPI read/chat/export endpoints
 | Database | SQLAlchemy models, repositories, Alembic migrations |
 | Workers | DB-backed job polling, progress steps, retries, stale recovery |
 | Frontend | Streamlit dashboard (no core AI logic) |
-| Notebooks | Kaggle GPU benchmarks (no FastAPI dependency) |
 
 ## Key design decisions
 
 1. **DB-backed worker instead of Celery** — simpler local deployment, restart-safe jobs.
 2. **Per-recording FAISS indexes** — retrieval isolation without multi-tenant vector ACL complexity.
 3. **OpenAI-compatible LLM adapter** — Ollama / llama.cpp / vLLM / LM Studio.
-4. **One combined analysis LLM call** — summary + topics + entities + sentiment in a single JSON request to avoid timeout on slow local GPUs. Optional second call for Qwen3-4B sentiment (`SENTIMENT_USE_SEPARATE_MODEL=true`).
+4. **One combined analysis LLM call** — summary + topics + entities + sentiment in a single JSON request to avoid timeout on slow local GPUs. Optional second call for Qwen3-4B sentiment (`SENTIMENT_USE_SEPARATE_MODEL=true`). Optional separate LoRA model ids for polish vs analysis (`ASR_POLISH_MODEL` / `LOCAL_LLM_MODEL`) — see [finetune_llm.md](finetune_llm.md).
 5. **Original + normalized transcripts** — preserves ASR fidelity while improving Persian text consistency.
 6. **No fabricated analytics** — empty lists when decisions/actions are absent; explicit Persian refusal for unanswerable QA.
 7. **No reranker** — embedding + FAISS top-k only for MVP.
@@ -87,8 +87,7 @@ FastAPI read/chat/export endpoints
 persian-speech-intelligence/
   backend/           # FastAPI app, worker, tests
   frontend/          # Streamlit UI
-  notebooks/         # Kaggle GPU benchmarks
-  scripts/           # sample audio + Tk test client
+  scripts/           # utilities + Tk test client
   sample_data/       # fixtures / manifests
   evaluation/        # ASR / retrieval / analysis eval
   docs/              # architecture, API, evaluation

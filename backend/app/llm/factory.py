@@ -16,6 +16,15 @@ def get_llm_provider(settings: Settings | None = None) -> LLMProvider:
     return OpenAICompatibleProvider(settings)
 
 
+def get_asr_polish_llm_provider(settings: Settings | None = None) -> LLMProvider:
+    """LLM for ASR transcript polish (optional dedicated LoRA model id)."""
+    settings = settings or get_settings()
+    model = settings.asr_polish_effective_model()
+    if settings.llm_provider == "local":
+        return LocalLLMProvider(settings, model=model)
+    return OpenAICompatibleProvider(settings, model=model)
+
+
 def get_sentiment_llm_provider(settings: Settings | None = None) -> LLMProvider:
     """Sentiment-only LLM (Qwen3-4B by default; same endpoint, different model).
 

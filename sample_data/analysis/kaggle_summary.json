@@ -1,0 +1,27 @@
+{
+  "short_summary": "مقاله درباره هوش مصنوعی و AI.",
+  "detailed_summary": "مقاله درباره هوش مصنوعی و AI شامل موضوعات مانند تعريف، تاريخ، تأثيرات، و استفاده‌ها از هوش مصنوعی و AI است.",
+  "topics": [
+    "تعريف هوش مصنوعی",
+    "تأريخ هوش مصنوعی",
+    "وپارامترهای هوش مصنوعی",
+    "استفاده‌های هوش مصنوعی",
+    "تأثیرات هوش مصنوعی"
+  ],
+  "sentiment": {
+    "label": "Positive"
+  },
+  "extracted_entities": [
+    {
+      "entity": "هوش مصنوعی",
+      "type": "Concept",
+      "confidence": 1
+    }
+  ],
+  "source": {
+    "file": "benchmark_timings (3).json",
+    "audio": "/kaggle/input/datasets/pooriaaaa/as1234/0b6a2ae6af23ee4370546d4893d4beb6.mp3",
+    "transcript_excerpt": "«هوش مصنوعی» و AI",
+    "llm": "Qwen/Qwen2.5-3B-Instruct"
+  }
+}

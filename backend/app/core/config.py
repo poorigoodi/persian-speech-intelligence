@@ -65,13 +65,31 @@ class Settings(BaseSettings):
     max_audio_duration_seconds: float = Field(default=3600.0, gt=0)
     min_audio_duration_seconds: float = Field(default=0.5, gt=0)
 
-    # Whisper ASR (Faster-Whisper Medium on GPU by default)
-    whisper_model: str = "medium"
+    # Whisper ASR — Persian fine-tune (CTranslate2) is much stronger than stock medium.
+    # Faster/lighter fallback: WHISPER_MODEL=medium
+    whisper_model: str = "oi-uae/farsi-faster-whisper-large-v3"
     whisper_device: Literal["cpu", "cuda", "auto"] = "cuda"
     whisper_compute_type: str = "float16"
     whisper_language: str = "fa"
     whisper_auto_detect_language: bool = False
-    whisper_beam_size: int = Field(default=5, ge=1, le=10)
+    whisper_beam_size: int = Field(default=8, ge=1, le=10)
+    whisper_best_of: int = Field(default=8, ge=1, le=10)
+    whisper_patience: float = Field(default=1.0, ge=0.1, le=2.0)
+    whisper_temperature: float = Field(default=0.0, ge=0.0, le=1.0)
+    whisper_vad_filter: bool = True
+    # False reduces cascading nonsense across segments on short Persian clips.
+    whisper_condition_on_previous_text: bool = False
+    whisper_initial_prompt: str = (
+        "متن به زبان فارسی است. واژه‌های رایج: هوش مصنوعی، یادگیری ماشین، "
+        "داده‌کاوی، شبکه عصبی، پردازش زبان طبیعی، AI."
+    )
+    whisper_hotwords: str = (
+        "هوش مصنوعی AI یادگیری ماشین داده‌کاوی شبکه عصبی پردازش زبان طبیعی"
+    )
+    # After ASR: rule cleanup always; optional LLM polish for garbled words.
+    asr_llm_polish: bool = True
+    # Optional dedicated model id for ASR polish LoRA (empty = use LLM_MODEL / LOCAL_LLM_MODEL).
+    asr_polish_model: str = ""
 
     # Embeddings / RAG — multilingual-e5-small on CPU; FAISS on CPU; no reranker
     embedding_model: str = "intfloat/multilingual-e5-small"
@@ -164,6 +182,13 @@ class Settings(BaseSettings):
         if self.llm_provider == "local":
             return self.local_sentiment_model
         return self.sentiment_model
+
+    def asr_polish_effective_model(self) -> str:
+        """Model id for ASR polish; falls back to the general LLM model."""
+        dedicated = (self.asr_polish_model or "").strip()
+        if dedicated:
+            return dedicated
+        return self.llm_effective_model()
 
 
 @lru_cache

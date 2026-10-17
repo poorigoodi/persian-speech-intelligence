@@ -53,6 +53,15 @@ Script: `evaluation/evaluate_analysis.py`
 - Extraction Precision / Recall / F1
 - Manual summary review averages (consistency, coverage, unsupported claims, readability)
 
+## LLM fine-tune (LoRA)
+
+Script: `evaluation/evaluate_finetune.py`
+
+- ASR polish holdout: WER / CER vs gold assistant text in `sample_data/finetune/asr_polish/eval.jsonl`
+- Analysis holdout: JSON parse rate + topic/keyword F1 vs gold in `sample_data/finetune/analysis/eval.jsonl`
+
+See [finetune_llm.md](finetune_llm.md).
+
 ## Performance
 
 Track separately during demos:
@@ -71,6 +80,8 @@ set PYTHONPATH=.
 python ../evaluation/evaluate_asr.py
 python ../evaluation/evaluate_retrieval.py
 python ../evaluation/evaluate_analysis.py
+python ../evaluation/evaluate_finetune.py --task asr_polish
+python ../evaluation/evaluate_finetune.py --task analysis
 ```
 
 Outputs are written under `evaluation/results/`.

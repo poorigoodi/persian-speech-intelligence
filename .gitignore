@@ -48,9 +48,11 @@ htmlcov/
 storage/uploads/*
 storage/temp/*
 storage/vector_indexes/*
+storage/models/*
 !storage/uploads/.gitkeep
 !storage/temp/.gitkeep
 !storage/vector_indexes/.gitkeep
+!storage/models/.gitkeep
 backend/storage/
 *.db
 sample_data/audio/*.wav

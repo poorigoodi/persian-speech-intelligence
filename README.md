@@ -4,18 +4,17 @@ AI-powered Persian speech analysis and conversational intelligence platform.
 
 Upload Persian audio (meetings, interviews, lectures, support calls). The system transcribes speech, generates summaries, extracts structured information, analyzes transcript sentiment, and answers grounded questions over the recording.
 
-Portfolio-ready AI engineering project: modular architecture, async processing, Kaggle benchmarks, Docker, tests, and clear docs.
+Portfolio-ready AI engineering project: modular architecture, async processing, Docker, tests, and clear docs.
 
 ## Main features
 
-- Persian ASR with **Faster-Whisper Medium** (timestamped segments, GPU)
+- Persian ASR with **Farsi fine-tuned Faster-Whisper large-v3** + rule/LLM polish
 - Persian-aware transcript normalization
 - **One combined LLM analysis call** (summary + topics + entities + sentiment) via **Qwen3-2B**
 - Optional separate **Qwen3-4B** sentiment (off by default — avoids GPU model swap)
 - Retrieval-augmented Q&A with **recording-level isolation** (e5-small + FAISS)
 - Streamlit dashboard with RTL-friendly Persian UI
 - FastAPI + PostgreSQL (or SQLite demo) + DB-backed worker
-- Kaggle GPU notebooks for speed benchmarking
 - Docker Compose, pytest, Ruff
 
 ## Repository layout
@@ -24,11 +23,10 @@ Portfolio-ready AI engineering project: modular architecture, async processing, 
 persian-speech-intelligence/
 ├── backend/           # FastAPI, worker, LLM, ASR, embeddings, tests
 ├── frontend/          # Streamlit UI
-├── notebooks/         # Kaggle GPU benchmarks
-├── scripts/           # sample audio generator, Tk test client
+├── scripts/           # utilities, Tk test client
 ├── sample_data/       # fixtures / evaluation manifests
 ├── evaluation/        # ASR / retrieval / analysis eval scripts
-├── docs/              # architecture, API, evaluation
+├── docs/              # architecture, API, ASR, evaluation
 ├── storage/           # runtime uploads & vector indexes
 ├── docker-compose.yml
 ├── requirements.txt   # meta: -r backend + frontend
@@ -40,27 +38,25 @@ persian-speech-intelligence/
 ```
 Upload → FastAPI → Storage + Job → Worker
                                    ├─ FFmpeg preprocess
-                                   ├─ Faster-Whisper Medium (GPU)
+                                   ├─ Farsi Faster-Whisper large-v3 (GPU)
                                    ├─ multilingual-e5-small + FAISS (CPU)
                                    └─ Qwen3-2B combined analysis / QA (GPU)
 Read/Chat/Export ← FastAPI ← DB + indexes ← Streamlit
 ```
 
-See [docs/architecture.md](docs/architecture.md).
+See [docs/architecture.md](docs/architecture.md). ASR details and fine-tuning: [docs/asr.md](docs/asr.md).
 
 ## Model defaults
 
 | بخش | مدل پیشنهادی | محل اجرا |
 |---|---|---|
-| Speech-to-Text | Faster-Whisper Medium | GPU |
+| Speech-to-Text | Farsi Faster-Whisper large-v3 (`oi-uae/...`) | GPU |
 | LLM | Qwen3-2B-Instruct-2507 (Q4) | GPU |
 | Embedding | multilingual-e5-small | CPU |
 | Reranker | فعلاً نیاز نیست | — |
 | Sentiment Analysis | داخل همان درخواست ترکیبی (اختیاری: Qwen3-4B) | GPU |
 | Vector Search | FAISS | CPU |
 | Database | PostgreSQL | CPU |
-
-Kaggle GPU reference timings (cold start, ~16s Persian TTS audio): ASR ~2s, embed search ~0.03s, LLM generate ~37s. Most wall-clock is **model load**, not inference.
 
 ## Requirements
 
@@ -105,20 +101,17 @@ set BACKEND_URL=http://localhost:8000
 streamlit run app.py
 ```
 
-Generate a Persian demo WAV (not a beep):
-
-```bash
-pip install -r backend/requirements-dev.txt
-python scripts/create_persian_sample_audio.py
-```
+For ASR quality tests, upload your own Persian recordings (this project has no TTS stack).
 
 ## Environment
 
 Important variables (see `.env.example`):
 
 ```env
-WHISPER_MODEL=medium
+WHISPER_MODEL=oi-uae/farsi-faster-whisper-large-v3
 WHISPER_DEVICE=cuda
+WHISPER_CONDITION_ON_PREVIOUS_TEXT=false
+ASR_LLM_POLISH=true
 EMBEDDING_MODEL=intfloat/multilingual-e5-small
 EMBEDDING_DEVICE=cpu
 LLM_PROVIDER=local
@@ -136,7 +129,7 @@ Analysis uses **one combined LLM request** by default. Set `SENTIMENT_USE_SEPARA
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/recordings" \
-  -F "file=@./sample_data/audio/example.wav"
+  -F "file=@./sample_data/audio/your_persian.wav"
 
 curl -X POST "http://localhost:8000/api/v1/recordings/<ID>/chat" \
   -H "Content-Type: application/json" \
@@ -147,24 +140,10 @@ If evidence is missing:
 
 > اطلاعات کافی برای پاسخ به این سؤال در فایل صوتی وجود ندارد.
 
-## Kaggle GPU benchmarks
-
-Notebooks under [`notebooks/`](notebooks/) — enable **GPU T4**, then Run All:
-
-| Notebook | Focus |
-|---|---|
-| `kaggle_psi_e2e.ipynb` | Full pipeline + timings |
-| `kaggle_01_asr_only.ipynb` | Whisper only |
-| `kaggle_02_embedding_faiss.ipynb` | e5 + FAISS |
-| `kaggle_03_llm_analysis.ipynb` | Qwen 4-bit analysis |
-
-See [`notebooks/README.md`](notebooks/README.md).
-
 ## Evaluation & tests
 
 ```bash
-# Evaluation (optional labeled data)
-# see docs/evaluation.md
+# Evaluation (optional labeled data) — see docs/evaluation.md
 
 cd backend
 pytest -q
@@ -178,10 +157,11 @@ pytest -q
 
 ## Limitations
 
-- Whisper quality varies for noisy / informal Persian and code-switching
+- Stock Whisper `medium` is weak on Persian tech talk — use the Farsi fine-tune (default) and `ASR_LLM_POLISH`
+- Domain vocabulary may still need `WHISPER_HOTWORDS` / fine-tuning — see [docs/asr.md](docs/asr.md)
 - Sentiment is **text-based**, not acoustic emotion recognition
 - No reranker; no diarization / realtime streaming in MVP
-- Local CPU-only setups will feel slow — use GPU or Kaggle notebooks
+- Local CPU-only setups will feel slow — GPU recommended
 
 ## License
 

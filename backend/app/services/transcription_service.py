@@ -9,6 +9,7 @@ from pathlib import Path
 from app.core.config import Settings, get_settings
 from app.core.exceptions import ProcessingError
 from app.core.logging import get_logger
+from app.utils.asr_correct import apply_asr_rules
 from app.utils.persian_normalize import normalize_persian_text
 
 logger = get_logger(__name__)
@@ -50,6 +51,7 @@ class WhisperModelManager:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self._model = None
+        self._loaded_key: tuple[str, str, str] | None = None
 
     @classmethod
     def get_instance(cls, settings: Settings | None = None) -> WhisperModelManager:
@@ -65,10 +67,16 @@ class WhisperModelManager:
             cls._instance = None
 
     def get_model(self):
-        if self._model is None:
+        key = (
+            self.settings.whisper_model,
+            self.settings.whisper_device,
+            self.settings.whisper_compute_type,
+        )
+        if self._model is None or self._loaded_key != key:
             with self._lock:
-                if self._model is None:
+                if self._model is None or self._loaded_key != key:
                     self._model = self._load_model()
+                    self._loaded_key = key
         return self._model
 
     def _load_model(self):
@@ -115,23 +123,62 @@ class TranscriptionService:
         model_manager: WhisperModelManager | None = None,
     ) -> None:
         self.settings = settings or get_settings()
-        self.model_manager = model_manager or WhisperModelManager.get_instance(self.settings)
+        self.model_manager = model_manager or WhisperModelManager.get_instance(
+            self.settings
+        )
 
     def transcribe(self, audio_path: Path) -> TranscriptionResult:
         if not audio_path.exists():
             raise ProcessingError(f"Audio file not found for transcription: {audio_path}")
 
         model = self.model_manager.get_model()
-        language = None if self.settings.whisper_auto_detect_language else self.settings.whisper_language
+        language = (
+            None
+            if self.settings.whisper_auto_detect_language
+            else self.settings.whisper_language
+        )
+        prompt = (self.settings.whisper_initial_prompt or "").strip() or None
+
+        transcribe_kwargs: dict = {
+            "language": language,
+            "task": "transcribe",
+            "beam_size": self.settings.whisper_beam_size,
+            "best_of": self.settings.whisper_best_of,
+            "patience": self.settings.whisper_patience,
+            "temperature": self.settings.whisper_temperature,
+            "vad_filter": self.settings.whisper_vad_filter,
+            "word_timestamps": False,
+            "condition_on_previous_text": self.settings.whisper_condition_on_previous_text,
+            "compression_ratio_threshold": 2.4,
+            "log_prob_threshold": -1.0,
+            "no_speech_threshold": 0.6,
+        }
+        if prompt:
+            transcribe_kwargs["initial_prompt"] = prompt
+        if self.settings.whisper_hotwords.strip():
+            # Supported on recent faster-whisper builds; ignore if unsupported.
+            transcribe_kwargs["hotwords"] = self.settings.whisper_hotwords.strip()
 
         try:
-            segments_iter, info = model.transcribe(
-                str(audio_path),
-                language=language,
-                beam_size=self.settings.whisper_beam_size,
-                vad_filter=True,
-                word_timestamps=False,
-            )
+            segments_iter, info = model.transcribe(str(audio_path), **transcribe_kwargs)
+        except TypeError:
+            # Older faster-whisper without hotwords/patience — retry leaner kwargs.
+            lean = {
+                k: v
+                for k, v in transcribe_kwargs.items()
+                if k
+                not in {
+                    "hotwords",
+                    "patience",
+                    "best_of",
+                    "condition_on_previous_text",
+                }
+            }
+            logger.warning("Retrying Whisper transcribe with compatibility kwargs.")
+            try:
+                segments_iter, info = model.transcribe(str(audio_path), **lean)
+            except Exception as exc:
+                raise ProcessingError(f"ASR transcription failed: {exc}") from exc
         except Exception as exc:
             raise ProcessingError(f"ASR transcription failed: {exc}") from exc
 
@@ -140,22 +187,28 @@ class TranscriptionService:
             text = (seg.text or "").strip()
             if not text:
                 continue
+            # Rule-based cleanup on raw ASR before normalize
+            cleaned = apply_asr_rules(text)
             segments.append(
                 TranscriptSegmentResult(
                     start=float(seg.start or 0.0),
                     end=float(seg.end or 0.0),
-                    text=text,
-                    normalized_text=normalize_persian_text(text),
+                    text=cleaned,
+                    normalized_text=normalize_persian_text(cleaned),
                     avg_logprob=getattr(seg, "avg_logprob", None),
                     no_speech_prob=getattr(seg, "no_speech_prob", None),
                 )
             )
 
-        detected_language = getattr(info, "language", None) or self.settings.whisper_language
+        detected_language = (
+            getattr(info, "language", None) or self.settings.whisper_language
+        )
         duration = float(getattr(info, "duration", 0.0) or 0.0)
 
         if not segments:
-            logger.info("Transcription produced no speech segments (possibly silent audio).")
+            logger.info(
+                "Transcription produced no speech segments (possibly silent audio)."
+            )
 
         return TranscriptionResult(
             language=detected_language,

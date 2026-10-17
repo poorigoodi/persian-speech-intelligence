@@ -6,32 +6,31 @@ Demonstration assets for local smoke tests and evaluation.
 
 ```
 sample_data/
-  audio/                 # Persian WAV fixtures
-    example.wav          # generated via scripts/create_persian_sample_audio.py
-  asr/manifest.jsonl     # ASR evaluation pairs (optional)
+  audio/                 # your Persian WAV/MP3/M4A recordings
+    example.wav          # optional smoke tone (not speech)
+    demo_script.txt      # example transcript text for evaluation
+  asr/manifest.jsonl
   qa/retrieval_manifest.jsonl
   analysis/extraction_manifest.jsonl
   analysis/summary_review.jsonl
+  finetune/              # LoRA chat JSONL (asr_polish + analysis)
+    asr_polish/{train,eval}.jsonl
+    analysis/{train,eval}.jsonl
 ```
 
-## Generate Persian demo audio
+See `finetune/README.md` and `docs/finetune_llm.md`.
+
+## Audio for ASR tests
+
+This repo does **not** include a TTS pipeline. For meaningful STT tests:
+
+1. Record a short Persian clip with your own voice, or
+2. Place consented/synthetic Persian speech under `sample_data/audio/`
+
+Optional beep fixture (pipeline smoke only — useless for ASR quality):
 
 ```bash
-pip install edge-tts nest-asyncio
-# FFmpeg must be on PATH (already required by the main app)
 python scripts/create_persian_sample_audio.py
 ```
 
-Output: `sample_data/audio/example.wav` (~15–20s Persian speech).
-
-Voices: `fa-IR-DilaraNeural` (default) or `fa-IR-FaridNeural`.
-
-Avoid English loanwords in TTS scripts (e.g. use «میزبان ابری» instead of «سرور»).
-
-Legacy beep-only fixture (not useful for ASR quality):
-
-```bash
-python scripts/create_persian_sample_audio.py --tone
-```
-
-Do not commit sensitive real-world recordings. Prefer synthetic TTS or consented samples.
+Do not commit sensitive real-world recordings without consent.

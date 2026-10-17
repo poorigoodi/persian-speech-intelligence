@@ -1,4 +1,2 @@
-# Optional tools for sample audio + notebooks (not needed to run the API)
+# Optional extras for local tooling (not required to run the API)
 -r requirements.txt
-edge-tts>=6.1.0
-nest-asyncio>=1.6.0

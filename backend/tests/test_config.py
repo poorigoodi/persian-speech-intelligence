@@ -13,8 +13,13 @@ def test_settings_defaults() -> None:
         _env_file=None,
         database_url="postgresql+psycopg://psi:psi@localhost:5432/persian_speech",
     )
-    assert settings.whisper_model == "medium"
+    assert settings.whisper_model == "oi-uae/farsi-faster-whisper-large-v3"
     assert settings.whisper_device == "cuda"
+    assert settings.whisper_beam_size == 8
+    assert settings.whisper_condition_on_previous_text is False
+    assert settings.asr_llm_polish is True
+    assert settings.asr_polish_model == ""
+    assert settings.asr_polish_effective_model() == settings.llm_effective_model()
     assert settings.embedding_model == "intfloat/multilingual-e5-small"
     assert settings.embedding_device == "cpu"
     assert settings.llm_provider == "local"
@@ -45,3 +50,14 @@ def test_cors_origin_list() -> None:
         database_url="postgresql+psycopg://psi:psi@localhost:5432/persian_speech",
     )
     assert settings.cors_origin_list == ["http://a", "http://b"]
+
+
+def test_asr_polish_model_override() -> None:
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql+psycopg://psi:psi@localhost:5432/persian_speech",
+        asr_polish_model="psi-asr-polish",
+        local_llm_model="Qwen3-2B-Instruct-2507",
+    )
+    assert settings.asr_polish_effective_model() == "psi-asr-polish"
+    assert settings.llm_effective_model() == "Qwen3-2B-Instruct-2507"
