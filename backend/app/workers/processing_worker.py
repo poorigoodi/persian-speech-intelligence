@@ -18,7 +18,7 @@ from app.db.repositories import (
     TranscriptRepository,
 )
 from app.db.session import SessionLocal
-from app.llm.factory import get_llm_provider
+from app.llm.factory import get_llm_provider, get_sentiment_llm_provider
 from app.models.recording import ProcessingStatus
 from app.models.transcript import TranscriptSegment
 from app.services.analysis_pipeline import AnalysisPipeline
@@ -146,8 +146,27 @@ class ProcessingWorker:
 
             if transcript_text:
                 llm = get_llm_provider(self.settings)
-                pipeline = AnalysisPipeline(llm)
-                bundle = await pipeline.run(transcript_text)
+                sentiment_llm = None
+                if self.settings.sentiment_use_separate_model:
+                    sentiment_llm = get_sentiment_llm_provider(self.settings)
+
+                pipeline = AnalysisPipeline(
+                    llm,
+                    sentiment_llm=sentiment_llm,
+                    settings=self.settings,
+                )
+
+                async def _on_progress(progress: int, step: str) -> None:
+                    fresh_job = job_repo.get(job_id)
+                    if fresh_job is not None:
+                        job_repo.update_progress(
+                            fresh_job, progress=progress, current_step=step
+                        )
+                        db.commit()
+
+                bundle = await pipeline.run(
+                    transcript_text, on_progress=_on_progress
+                )
                 payload = bundle.as_db_payload()
                 analysis_repo.upsert(recording.id, **payload)
             else:

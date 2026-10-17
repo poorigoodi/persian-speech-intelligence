@@ -2,10 +2,10 @@
 
 ## Overview
 
-Persian Speech Intelligence is a modular AI application that turns Persian audio into searchable transcripts and grounded analytical insights.
+Persian Speech Intelligence turns Persian audio into searchable transcripts and grounded analytical insights.
 
 ```
-User (Streamlit)
+User (Streamlit / Tk test client)
         |
         | HTTP
         v
@@ -14,23 +14,36 @@ FastAPI (API Layer)
         +-- Validation & storage
         |
         v
-PostgreSQL (jobs/recordings)
+PostgreSQL or SQLite (jobs/recordings)
         |
         v
 Background Worker
         |
         +--> Audio preprocess (FFmpeg)
-        +--> ASR (faster-whisper)
+        +--> ASR (Faster-Whisper Medium, GPU)
         +--> Normalization
-        +--> Embeddings + FAISS index
-        +--> LLM analysis (summary/topics/sentiment/extraction)
+        +--> Embeddings (multilingual-e5-small, CPU) + FAISS (CPU)
+        +--> Combined LLM analysis — Qwen3-2B JSON (summary/topics/entities/sentiment)
+        +--> Optional 2nd call — Qwen3-4B sentiment (SENTIMENT_USE_SEPARATE_MODEL)
         |
         v
-PostgreSQL + Vector indexes
+DB + per-recording vector indexes
         |
         v
 FastAPI read/chat/export endpoints
 ```
+
+## Model placement
+
+| بخش | مدل | محل اجرا |
+|---|---|---|
+| Speech-to-Text | Faster-Whisper Medium | GPU |
+| LLM (analysis / QA) | Qwen3-2B-Instruct-2507 (Q4) | GPU |
+| Embedding | multilingual-e5-small | CPU |
+| Reranker | — | not used |
+| Sentiment | included in combined call; optional Qwen3-4B | GPU |
+| Vector Search | FAISS | CPU |
+| Database | PostgreSQL (prod) / SQLite (local demo) | CPU |
 
 ## Layers
 
@@ -39,34 +52,52 @@ FastAPI read/chat/export endpoints
 | API | FastAPI routers, auth gate, OpenAPI, request validation |
 | Business services | Audio, transcription, analysis orchestration, QA, export |
 | Speech | FFmpeg validation/conversion, Whisper model manager |
-| NLP / LLM | Provider abstraction, structured output parsing |
+| NLP / LLM | Provider abstraction, combined JSON analysis, structured parsing |
 | Retrieval | Chunking, embeddings, FAISS, recording-isolated search |
 | Database | SQLAlchemy models, repositories, Alembic migrations |
-| Workers | DB-backed job polling, progress, retries, stale recovery |
+| Workers | DB-backed job polling, progress steps, retries, stale recovery |
 | Frontend | Streamlit dashboard (no core AI logic) |
+| Notebooks | Kaggle GPU benchmarks (no FastAPI dependency) |
 
 ## Key design decisions
 
-1. **DB-backed worker instead of Celery** — simpler local deployment, restart-safe jobs, enough for MVP concurrency.
-2. **Per-recording FAISS indexes** — enforces retrieval isolation without multi-tenant vector ACL complexity.
-3. **OpenAI-compatible LLM adapter** — works with hosted APIs and local servers (e.g. Ollama).
-4. **Original + normalized transcripts** — preserves ASR fidelity while improving Persian text consistency.
-5. **No fabricated analytics** — empty lists when decisions/actions are absent; explicit Persian refusal for unanswerable QA.
+1. **DB-backed worker instead of Celery** — simpler local deployment, restart-safe jobs.
+2. **Per-recording FAISS indexes** — retrieval isolation without multi-tenant vector ACL complexity.
+3. **OpenAI-compatible LLM adapter** — Ollama / llama.cpp / vLLM / LM Studio.
+4. **One combined analysis LLM call** — summary + topics + entities + sentiment in a single JSON request to avoid timeout on slow local GPUs. Optional second call for Qwen3-4B sentiment (`SENTIMENT_USE_SEPARATE_MODEL=true`).
+5. **Original + normalized transcripts** — preserves ASR fidelity while improving Persian text consistency.
+6. **No fabricated analytics** — empty lists when decisions/actions are absent; explicit Persian refusal for unanswerable QA.
+7. **No reranker** — embedding + FAISS top-k only for MVP.
+8. **Paced LLM I/O** — connect timeout fails fast; long read timeout; optional pause between calls; transcript clipped for analysis.
 
 ## Data flow for one recording
 
 1. Upload validated by extension, size, duration, and FFmpeg probe.
 2. Recording + pending job rows created.
-3. Worker claims job (`SKIP LOCKED` on PostgreSQL).
+3. Worker claims job (`SKIP LOCKED` on PostgreSQL; SQLite uses a simpler claim).
 4. Audio converted to mono 16 kHz WAV.
 5. Whisper produces timestamped segments.
 6. Segments stored; embeddings indexed under `recording_id`.
-7. LLM analysis persisted as JSON fields.
+7. Combined LLM analysis persisted as JSON fields (progress: `analyze_prepare` → `analyze_combined` → …).
 8. Clients poll status and fetch transcript/analysis/chat/export.
+
+## Repository layout
+
+```
+persian-speech-intelligence/
+  backend/           # FastAPI app, worker, tests
+  frontend/          # Streamlit UI
+  notebooks/         # Kaggle GPU benchmarks
+  scripts/           # sample audio + Tk test client
+  sample_data/       # fixtures / manifests
+  evaluation/        # ASR / retrieval / analysis eval
+  docs/              # architecture, API, evaluation
+  storage/           # runtime uploads / indexes (gitignored contents)
+```
 
 ## Privacy notes
 
 - Uploaded files are stored outside public static serving paths.
 - Full transcripts are not logged by default.
-- External LLM providers receive transcript text required for analysis/QA only.
+- LLM endpoints receive transcript text required for analysis/QA only.
 - Deleting a recording removes DB rows, audio file, temp files, and vector index files.

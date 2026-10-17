@@ -13,7 +13,17 @@ def test_settings_defaults() -> None:
         _env_file=None,
         database_url="postgresql+psycopg://psi:psi@localhost:5432/persian_speech",
     )
-    assert settings.whisper_model == "small"
+    assert settings.whisper_model == "medium"
+    assert settings.whisper_device == "cuda"
+    assert settings.embedding_model == "intfloat/multilingual-e5-small"
+    assert settings.embedding_device == "cpu"
+    assert settings.llm_provider == "local"
+    assert settings.local_llm_model == "Qwen3-2B-Instruct-2507"
+    assert settings.local_sentiment_model == "Qwen3-4B"
+    assert settings.sentiment_effective_model() == "Qwen3-4B"
+    assert settings.sentiment_use_separate_model is False
+    assert settings.llm_timeout_seconds == 300
+    assert settings.llm_max_tokens == 1024
     assert settings.whisper_language == "fa"
     assert settings.max_upload_bytes == 100 * 1024 * 1024
 

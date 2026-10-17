@@ -1,4 +1,8 @@
-"""Structured information and topic extraction."""
+"""Structured information and topic extraction.
+
+The default worker path uses AnalysisPipeline's combined JSON call.
+This module remains available for stepwise / ad-hoc extraction.
+"""
 
 from __future__ import annotations
 

@@ -48,8 +48,15 @@ class EmbeddingModelManager:
                         raise ProcessingError(
                             "sentence-transformers is not installed."
                         ) from exc
-                    logger.info("Loading embedding model '%s'", self.settings.embedding_model)
-                    self._model = SentenceTransformer(self.settings.embedding_model)
+                    logger.info(
+                        "Loading embedding model '%s' on %s",
+                        self.settings.embedding_model,
+                        self.settings.embedding_device,
+                    )
+                    self._model = SentenceTransformer(
+                        self.settings.embedding_model,
+                        device=self.settings.embedding_device,
+                    )
         return self._model
 
 
@@ -66,12 +73,31 @@ class EmbeddingService:
         )
         self.vector_store = vector_store or FaissVectorStore(self.settings.vector_index_dir)
 
-    def embed_texts(self, texts: list[str]) -> np.ndarray:
+    def _uses_e5_prefixes(self) -> bool:
+        name = self.settings.embedding_model.lower()
+        return "e5-" in name or name.endswith("/e5") or "/e5-" in name
+
+    def embed_texts(
+        self,
+        texts: list[str],
+        *,
+        prefix: str | None = None,
+    ) -> np.ndarray:
         if not texts:
             return np.zeros((0, 0), dtype=np.float32)
         model = self.model_manager.get_model()
+        if prefix:
+            texts = [f"{prefix}{t}" for t in texts]
         vectors = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
         return np.asarray(vectors, dtype=np.float32)
+
+    def embed_passages(self, texts: list[str]) -> np.ndarray:
+        prefix = "passage: " if self._uses_e5_prefixes() else None
+        return self.embed_texts(texts, prefix=prefix)
+
+    def embed_queries(self, texts: list[str]) -> np.ndarray:
+        prefix = "query: " if self._uses_e5_prefixes() else None
+        return self.embed_texts(texts, prefix=prefix)
 
     def index_recording(
         self,
@@ -88,7 +114,7 @@ class EmbeddingService:
             self.vector_store.delete(recording_id)
             return []
 
-        embeddings = self.embed_texts([c.text for c in chunks])
+        embeddings = self.embed_passages([c.text for c in chunks])
         metadatas = [
             VectorMeta(
                 chunk_index=c.chunk_index,

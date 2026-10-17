@@ -9,7 +9,21 @@ from app.llm.openai_compatible import OpenAICompatibleProvider
 
 
 def get_llm_provider(settings: Settings | None = None) -> LLMProvider:
+    """General LLM for summary / extraction / QA (Qwen3-2B by default)."""
     settings = settings or get_settings()
     if settings.llm_provider == "local":
         return LocalLLMProvider(settings)
     return OpenAICompatibleProvider(settings)
+
+
+def get_sentiment_llm_provider(settings: Settings | None = None) -> LLMProvider:
+    """Sentiment-only LLM (Qwen3-4B by default; same endpoint, different model).
+
+    Prefer enabling only when SENTIMENT_USE_SEPARATE_MODEL=true — loading a second
+    model on one GPU often causes long stalls / timeouts.
+    """
+    settings = settings or get_settings()
+    model = settings.sentiment_effective_model()
+    if settings.llm_provider == "local":
+        return LocalLLMProvider(settings, model=model)
+    return OpenAICompatibleProvider(settings, model=model)

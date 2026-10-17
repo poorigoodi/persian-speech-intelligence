@@ -9,10 +9,10 @@ from app.llm.openai_compatible import OpenAICompatibleProvider
 class LocalLLMProvider(OpenAICompatibleProvider):
     """Adapter for local inference servers exposing OpenAI-compatible APIs."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, model: str | None = None) -> None:
         super().__init__(
             settings,
             base_url=settings.local_llm_base_url,
-            model=settings.local_llm_model,
+            model=model or settings.local_llm_model,
             api_key=settings.llm_api_key or "local",
         )

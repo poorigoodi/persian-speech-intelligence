@@ -38,3 +38,23 @@ def test_detailed_summary_empty_lists() -> None:
     summary = DetailedSummary()
     assert summary.decisions == []
     assert summary.action_items == []
+
+
+def test_combined_analysis_payload_parses() -> None:
+    from app.services.analysis_pipeline import CombinedAnalysisPayload
+
+    raw = """
+    {
+      "short_summary": "خلاصه",
+      "detailed_summary": {"main_discussion": "بحث", "important_points": []},
+      "topics": [{"name": "بودجه", "description": ""}],
+      "sentiment": {"label": "Neutral", "explanation": "خنثی"},
+      "extracted_entities": {"people": ["علی"], "keywords": ["پروژه"]}
+    }
+    """
+    payload = parse_structured(raw, CombinedAnalysisPayload)
+    assert payload.short_summary == "خلاصه"
+    assert payload.topics[0].name == "بودجه"
+    assert payload.sentiment is not None
+    assert payload.sentiment.label == "Neutral"
+    assert payload.extracted_entities.people == ["علی"]

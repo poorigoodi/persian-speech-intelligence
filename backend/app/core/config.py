@@ -9,12 +9,30 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# backend/app/core/config.py → repo root is parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _env_files() -> tuple[str, ...]:
+    """Prefer repo-root .env, then cwd .env (local demo / Docker)."""
+    candidates = [
+        _REPO_ROOT / ".env",
+        Path.cwd() / ".env",
+        Path.cwd().parent / ".env",
+    ]
+    found: list[str] = []
+    for path in candidates:
+        resolved = str(path.resolve())
+        if path.is_file() and resolved not in found:
+            found.append(resolved)
+    return tuple(found) or (".env",)
+
 
 class Settings(BaseSettings):
     """Validated runtime settings for the Persian Speech Intelligence API."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_env_files(),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -47,33 +65,44 @@ class Settings(BaseSettings):
     max_audio_duration_seconds: float = Field(default=3600.0, gt=0)
     min_audio_duration_seconds: float = Field(default=0.5, gt=0)
 
-    # Whisper ASR
-    whisper_model: str = "small"
-    whisper_device: Literal["cpu", "cuda", "auto"] = "cpu"
-    whisper_compute_type: str = "int8"
+    # Whisper ASR (Faster-Whisper Medium on GPU by default)
+    whisper_model: str = "medium"
+    whisper_device: Literal["cpu", "cuda", "auto"] = "cuda"
+    whisper_compute_type: str = "float16"
     whisper_language: str = "fa"
     whisper_auto_detect_language: bool = False
     whisper_beam_size: int = Field(default=5, ge=1, le=10)
 
-    # Embeddings / RAG
-    embedding_model: str = (
-        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    )
+    # Embeddings / RAG — multilingual-e5-small on CPU; FAISS on CPU; no reranker
+    embedding_model: str = "intfloat/multilingual-e5-small"
+    embedding_device: Literal["cpu", "cuda"] = "cpu"
     chunk_size_chars: int = Field(default=500, ge=100, le=4000)
     chunk_overlap_chars: int = Field(default=80, ge=0, le=1000)
     retrieval_top_k: int = Field(default=5, ge=1, le=20)
 
-    # LLM
-    llm_provider: Literal["openai_compatible", "local"] = "openai_compatible"
+    # LLM — Qwen3-2B-Instruct-2507 (Q4) via local OpenAI-compatible server (GPU)
+    llm_provider: Literal["openai_compatible", "local"] = "local"
     llm_base_url: str = "https://api.openai.com/v1"
-    llm_model: str = "gpt-4o-mini"
+    llm_model: str = "Qwen3-2B-Instruct-2507"
     llm_api_key: str = ""
-    llm_timeout_seconds: int = Field(default=120, ge=10, le=600)
-    llm_max_tokens: int = Field(default=4096, ge=256, le=16384)
+    # Local models are slow: long read timeout, fast connect fail.
+    llm_timeout_seconds: int = Field(default=300, ge=10, le=900)
+    llm_connect_timeout_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
+    llm_max_tokens: int = Field(default=1024, ge=256, le=16384)
+    llm_analysis_max_tokens: int = Field(default=1536, ge=256, le=8192)
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    # Pause between LLM calls to reduce GPU/memory thrash on small machines.
+    llm_request_pause_seconds: float = Field(default=1.5, ge=0.0, le=30.0)
+    analysis_transcript_max_chars: int = Field(default=8000, ge=1000, le=40000)
 
     local_llm_base_url: str = "http://localhost:11434/v1"
-    local_llm_model: str = "llama3.2"
+    local_llm_model: str = "Qwen3-2B-Instruct-2507"
+
+    # Sentiment — Qwen3-4B when separate mode is enabled; otherwise included in
+    # the single combined analysis call (safer on one GPU / slow local servers).
+    sentiment_model: str = "Qwen3-4B"
+    local_sentiment_model: str = "Qwen3-4B"
+    sentiment_use_separate_model: bool = False
 
     # Worker
     worker_poll_interval_seconds: float = Field(default=2.0, ge=0.5, le=60.0)
@@ -130,6 +159,11 @@ class Settings(BaseSettings):
         if self.llm_provider == "local":
             return self.local_llm_model
         return self.llm_model
+
+    def sentiment_effective_model(self) -> str:
+        if self.llm_provider == "local":
+            return self.local_sentiment_model
+        return self.sentiment_model
 
 
 @lru_cache

@@ -51,6 +51,11 @@ storage/vector_indexes/*
 !storage/uploads/.gitkeep
 !storage/temp/.gitkeep
 !storage/vector_indexes/.gitkeep
+backend/storage/
+*.db
+sample_data/audio/*.wav
+sample_data/audio/*.mp3
+!sample_data/audio/.gitkeep
 
 # Model caches
 .cache/

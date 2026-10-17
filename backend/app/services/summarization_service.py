@@ -1,4 +1,8 @@
-"""Persian summarization using the configured LLM provider."""
+"""Persian summarization using the configured LLM provider.
+
+The default worker path uses AnalysisPipeline's combined JSON call.
+This module remains available for stepwise / ad-hoc summarization.
+"""
 
 from __future__ import annotations
 
