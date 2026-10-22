@@ -1,5 +1,7 @@
 # Persian Speech Intelligence
 
+![Persian Speech Intelligence](persian-speech-intelligence.png)
+
 AI-powered Persian speech analysis and conversational intelligence platform.
 
 Upload Persian audio (meetings, interviews, lectures, support calls). The system transcribes speech, generates summaries, extracts structured information, analyzes transcript sentiment, and answers grounded questions over the recording.
