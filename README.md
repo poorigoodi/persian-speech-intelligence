@@ -8,6 +8,12 @@ Upload Persian audio (meetings, interviews, lectures, support calls). The system
 
 Portfolio-ready AI engineering project: modular architecture, async processing, Docker, tests, and clear docs.
 
+## Gallery
+
+| Pipeline | Analysis UI |
+|:---:|:---:|
+| ![Audio → transcript → insights](docs/assets/psi-pipeline.jpg) | ![Persian analysis dashboard mockup](docs/assets/psi-analysis-ui.jpg) |
+
 ## Main features
 
 - Persian ASR with **Farsi fine-tuned Faster-Whisper large-v3** + rule/LLM polish
@@ -18,6 +24,75 @@ Portfolio-ready AI engineering project: modular architecture, async processing, 
 - Streamlit dashboard with RTL-friendly Persian UI
 - FastAPI + PostgreSQL (or SQLite demo) + DB-backed worker
 - Docker Compose, pytest, Ruff
+
+## Example
+
+Short Persian clip (ASR → analysis JSON):
+
+**Transcript (example)**
+
+```text
+امروز می‌خوام در مورد هوش مصنوعی صحبت کنم.
+شاخه‌های هوش مصنوعی، هوش مصنوعی شاخه داره، AI داره.
+```
+
+**Analysis output (shape matches the API / export)**
+
+```json
+{
+  "short_summary": "گوینده درباره هوش مصنوعی و شاخه‌های آن و AI صحبت می‌کند.",
+  "detailed_summary": {
+    "main_discussion": "معرفی هوش مصنوعی و وجود شاخه‌ها و AI",
+    "important_points": ["هوش مصنوعی شاخه دارد", "AI بخشی از بحث است"],
+    "decisions": [],
+    "action_items": [],
+    "open_questions": [],
+    "final_conclusions": ["موضوع اصلی هوش مصنوعی است"]
+  },
+  "topics": [
+    {"name": "هوش مصنوعی", "description": "تعریف و شاخه‌ها"},
+    {"name": "AI", "description": "اشاره به هوش مصنوعی"}
+  ],
+  "sentiment": {
+    "label": "Neutral",
+    "explanation": "لحن اطلاع‌رسانی و خنثی است."
+  },
+  "extracted_entities": {
+    "keywords": ["هوش مصنوعی", "AI", "شاخه"],
+    "people": [],
+    "organizations": [],
+    "tasks": [],
+    "decisions": []
+  }
+}
+```
+
+**API flow**
+
+```bash
+# 1) Upload audio
+curl -X POST "http://localhost:8000/api/v1/recordings" \
+  -F "file=@./sample_data/audio/your_persian.wav"
+# → { "id": "<RECORDING_ID>", "processing_status": "pending", ... }
+
+# 2) After worker completes, fetch analysis
+curl "http://localhost:8000/api/v1/recordings/<RECORDING_ID>/analysis"
+
+# 3) Grounded Q&A
+curl -X POST "http://localhost:8000/api/v1/recordings/<RECORDING_ID>/chat" \
+  -H "Content-Type: application/json" \
+  -d "{\"question\":\"موضوع اصلی صحبت چه بود؟\"}"
+
+# 4) Export JSON / txt / markdown
+curl -L "http://localhost:8000/api/v1/recordings/<RECORDING_ID>/export?format=json" \
+  -o analysis.json
+```
+
+If evidence is missing, chat refuses in Persian:
+
+> اطلاعات کافی برای پاسخ به این سؤال در فایل صوتی وجود ندارد.
+
+More fixtures: `sample_data/finetune/` and [sample_data/README.md](sample_data/README.md).
 
 ## Repository layout
 
@@ -127,29 +202,58 @@ SENTIMENT_USE_SEPARATE_MODEL=false
 
 Analysis uses **one combined LLM request** by default. Set `SENTIMENT_USE_SEPARATE_MODEL=true` only when Qwen3-4B is already loaded.
 
-## Usage
+## Usage (UI)
+
+1. Open Streamlit at http://localhost:8501  
+2. Upload a Persian recording → wait until status is `completed`  
+3. Open **Transcript** / **Analysis** / **Chat** / **Export** pages  
+4. Download `analysis_summary`-style JSON from Export (`format=json`)
+
+API examples are in the [Example](#example) section above.
+
+## Tests
+
+Unit / API tests (no GPU required for most cases):
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/recordings" \
-  -F "file=@./sample_data/audio/your_persian.wav"
-
-curl -X POST "http://localhost:8000/api/v1/recordings/<ID>/chat" \
-  -H "Content-Type: application/json" \
-  -d "{\"question\":\"جلسه درباره چه موضوعی بود؟\"}"
-```
-
-If evidence is missing:
-
-> اطلاعات کافی برای پاسخ به این سؤال در فایل صوتی وجود ندارد.
-
-## Evaluation & tests
-
-```bash
-# Evaluation (optional labeled data) — see docs/evaluation.md
-
 cd backend
+set PYTHONPATH=.
 pytest -q
 ```
+
+Useful subsets:
+
+```bash
+pytest -q tests/test_asr_correct.py tests/test_persian_normalize.py
+pytest -q tests/test_llm_json.py
+pytest -q tests/test_config.py tests/test_health.py
+pytest -q tests/test_recordings_api.py tests/test_retrieval_isolation.py
+```
+
+What the suite covers (see `backend/tests/`):
+
+| Area | Examples |
+|------|----------|
+| ASR polish rules | `test_asr_correct.py` |
+| Persian normalization | `test_persian_normalize.py` |
+| LLM JSON schemas | `test_llm_json.py` |
+| Config / health | `test_config.py`, `test_health.py` |
+| Upload & jobs | `test_recordings_api.py`, `test_job_transitions.py` |
+| RAG isolation | `test_retrieval_isolation.py`, `test_chunking_and_isolation.py` |
+
+## Evaluation (optional labeled data)
+
+```bash
+# From repo root / with PYTHONPATH=backend
+python evaluation/evaluate_asr.py
+python evaluation/evaluate_retrieval.py
+python evaluation/evaluate_analysis.py
+python evaluation/evaluate_finetune.py --task asr_polish
+python evaluation/evaluate_finetune.py --task analysis
+```
+
+Notebook GPU harness + quality metrics: [notebooks/README.md](notebooks/README.md)  
+Methodology: [docs/evaluation.md](docs/evaluation.md) · LoRA fine-tune: [docs/finetune_llm.md](docs/finetune_llm.md)
 
 ## Security and privacy
 
