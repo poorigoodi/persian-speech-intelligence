@@ -40,43 +40,91 @@ Conversational assistant grounded directly in the transcribed audio with timesta
 
 ## Example
 
-Short Persian clip (ASR → analysis JSON):
+Real Persian audio clip test (`New_Recording_9.m4a` — as featured in the gallery screenshots):
 
-**Transcript (example)**
+**Transcript (ASR output)**
 
 ```text
-امروز می‌خوام در مورد هوش مصنوعی صحبت کنم.
-شاخه‌های هوش مصنوعی، هوش مصنوعی شاخه داره، AI داره.
+من پوریا گودرزی‌ام، اینجا شیرازه، من بیست و دو سالمه، متخصص هوش مصنوعی هستم و این پروژه برای تست انجام میشه.
 ```
 
-**Analysis output (shape matches the API / export)**
+**Analysis output (`GET /api/v1/recordings/<ID>/analysis`)**
 
 ```json
 {
-  "short_summary": "گوینده درباره هوش مصنوعی و شاخه‌های آن و AI صحبت می‌کند.",
+  "recording_id": "29a8c751-fd75-47cd-a3ad-bc31ba94aa0e",
+  "short_summary": "در این فایل صوتی، پوریا گودرزی از شیراز (متخصص هوش مصنوعی) خود را معرفی می‌کند و هدف این ضبط، تست و ارزیابی عملکرد پروژه بیان شده است.",
   "detailed_summary": {
-    "main_discussion": "معرفی هوش مصنوعی و وجود شاخه‌ها و AI",
-    "important_points": ["هوش مصنوعی شاخه دارد", "AI بخشی از بحث است"],
+    "main_discussion": "معرفی هوش مصنوعی، تخصص گوینده و اجرای آزمایشی پروژه پردازش گفتار",
+    "important_points": [
+      "من پوریا گودرزی‌ام",
+      "اینجا شیرازه",
+      "من بیست و دو سالمه",
+      "متخصص هوش مصنوعی هستم و این پروژه برای تست انجام میشه"
+    ],
     "decisions": [],
     "action_items": [],
     "open_questions": [],
-    "final_conclusions": ["موضوع اصلی هوش مصنوعی است"]
+    "final_conclusions": []
   },
   "topics": [
-    {"name": "هوش مصنوعی", "description": "تعریف و شاخه‌ها"},
-    {"name": "AI", "description": "اشاره به هوش مصنوعی"}
+    {
+      "name": "هوش مصنوعی",
+      "description": "بحث و بررسی حوزه هوش مصنوعی و کاربردهای آن",
+      "relevance": 0.95
+    },
+    {
+      "name": "متخصص هوش مصنوعی",
+      "description": "معرفی تخصصی و پیشینه حرفه‌ای گوینده در هوش مصنوعی",
+      "relevance": 0.90
+    },
+    {
+      "name": "پروژه تست",
+      "description": "اجرای آزمایشی و بررسی عملکرد پردازش صوت",
+      "relevance": 0.85
+    },
+    {
+      "name": "معرفی گوینده (پوریا گودرزی)",
+      "description": "معرفی مشخصات فردی، سن و محل سکونت (شیراز)",
+      "relevance": 0.85
+    }
   ],
   "sentiment": {
-    "label": "Neutral",
-    "explanation": "لحن اطلاع‌رسانی و خنثی است."
+    "label": "Positive",
+    "explanation": "لحن گفتار مثبت، شفاف و همراه با معرفی تخصص و هدفمند است.",
+    "score": 0.85,
+    "emotions": {
+      "joy": 42.0,
+      "neutral": 36.0,
+      "sadness": 10.0,
+      "anger": 7.0,
+      "fear": 5.0
+    },
+    "language": "fa"
   },
   "extracted_entities": {
-    "keywords": ["هوش مصنوعی", "AI", "شاخه"],
-    "people": [],
+    "people": [
+      "پوریا گودرزی"
+    ],
+    "locations": [
+      "شیراز"
+    ],
     "organizations": [],
+    "dates": [],
+    "times": [],
+    "deadlines": [],
     "tasks": [],
-    "decisions": []
-  }
+    "decisions": [],
+    "keywords": [
+      "هوش مصنوعی",
+      "متخصص هوش مصنوعی",
+      "پروژه تست",
+      "پوریا گودرزی",
+      "شیراز"
+    ]
+  },
+  "action_items": [],
+  "decisions": []
 }
 ```
 
@@ -91,11 +139,32 @@ curl -X POST "http://localhost:8000/api/v1/recordings" \
 # 2) After worker completes, fetch analysis
 curl "http://localhost:8000/api/v1/recordings/<RECORDING_ID>/analysis"
 
-# 3) Grounded Q&A
+# 3) Grounded Q&A (RAG over recording transcript)
 curl -X POST "http://localhost:8000/api/v1/recordings/<RECORDING_ID>/chat" \
   -H "Content-Type: application/json" \
-  -d "{\"question\":\"موضوع اصلی صحبت چه بود؟\"}"
+  -d "{\"question\":\"نکات مهم مطرح‌شده در این فایل صوتی چیست؟\"}"
+```
 
+**Grounded Q&A response:**
+
+```json
+{
+  "recording_id": "<RECORDING_ID>",
+  "question": "نکات مهم مطرح‌شده در این فایل صوتی چیست؟",
+  "answer": "نکات مطرح‌شده در این فایل صوتی عبارت‌اند از: • من پوریا گودرزی‌ام • اینجا شیرازه • من بیست و دو سالمه، متخصص هوش مصنوعی هستم و این پروژه برای تست انجام میشه.",
+  "grounded": true,
+  "evidence": [
+    {
+      "start_time": 0.0,
+      "end_time": 11.0,
+      "text": "من پوریا گودرزی‌ام، اینجا شیرازه، من بیست و دو سالمه، متخصص هوش مصنوعی هستم و این پروژه برای تست انجام میشه.",
+      "score": 0.81
+    }
+  ]
+}
+```
+
+```bash
 # 4) Export JSON / txt / markdown
 curl -L "http://localhost:8000/api/v1/recordings/<RECORDING_ID>/export?format=json" \
   -o analysis.json
