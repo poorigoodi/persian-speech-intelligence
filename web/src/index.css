@@ -1,0 +1,305 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --c-navy-950: 5 10 24;
+  --c-navy-900: 7 14 34;
+  --c-navy-850: 10 21 43;
+  --c-navy-800: 11 23 48;
+  --c-navy-750: 12 23 48;
+  --c-navy-700: 12 25 51;
+  --c-navy-600: 26 43 80;
+  --c-ink: 242 245 255;
+  --c-mute: 145 164 203;
+  --c-mute2: 168 184 216;
+  --c-violet-300: 196 181 253;
+  --c-violet-400: 185 168 255;
+  --c-violet-500: 139 92 255;
+  --c-violet-600: 105 59 255;
+  --c-violet-800: 32 27 98;
+  --c-violet-900: 60 53 160;
+  --c-electric: 77 141 255;
+  --scrollbar-thumb: #1a2b50;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --c-navy-950: 243 246 252;
+  --c-navy-900: 255 255 255;
+  --c-navy-850: 248 250 255;
+  --c-navy-800: 240 244 251;
+  --c-navy-750: 255 255 255;
+  --c-navy-700: 255 255 255;
+  --c-navy-600: 218 226 240;
+  --c-ink: 15 23 42;
+  --c-mute: 100 116 139;
+  --c-mute2: 51 65 85;
+  --c-violet-300: 105 59 255;
+  --c-violet-400: 105 59 255;
+  --c-violet-500: 105 59 255;
+  --c-violet-600: 105 59 255;
+  --c-violet-800: 237 233 254;
+  --c-violet-900: 196 181 253;
+  --c-electric: 37 99 235;
+  --scrollbar-thumb: #cbd5e1;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background-color: rgb(var(--c-navy-950)) !important;
+  color: rgb(var(--c-ink)) !important;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Complete Light Mode overrides */
+html[data-theme="light"] .bg-navy-950,
+html[data-theme="light"] .bg-navy-950\/90,
+html[data-theme="light"] .bg-navy-950\/75 {
+  background-color: #f3f6fc !important;
+}
+
+html[data-theme="light"] header.bg-navy-950\/90 {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  backdrop-filter: blur(8px);
+}
+
+html[data-theme="light"] aside.bg-navy-900 {
+  background-color: #ffffff !important;
+}
+
+html[data-theme="light"] .bg-navy-900,
+html[data-theme="light"] .bg-navy-900\/70,
+html[data-theme="light"] .bg-navy-850,
+html[data-theme="light"] .bg-navy-850\/90,
+html[data-theme="light"] .bg-navy-750 {
+  background-color: #f8fafc !important;
+}
+
+html[data-theme="light"] .psi-card,
+html[data-theme="light"] .bg-navy-700 {
+  background-color: #ffffff !important;
+  border-color: #dbe2f0 !important;
+  box-shadow: 0 2px 12px -4px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme="light"] .bg-navy-800,
+html[data-theme="light"] .bg-navy-800\/90,
+html[data-theme="light"] .bg-navy-800\/80,
+html[data-theme="light"] .bg-navy-800\/70,
+html[data-theme="light"] .bg-navy-800\/60,
+html[data-theme="light"] .bg-navy-800\/50,
+html[data-theme="light"] .bg-navy-800\/45,
+html[data-theme="light"] .bg-navy-800\/40,
+html[data-theme="light"] .bg-navy-800\/35 {
+  background-color: #f1f5fc !important;
+}
+
+html[data-theme="light"] .bg-navy-600 {
+  background-color: #cbd5e1 !important;
+}
+
+/* Hover state overrides in Light Mode */
+html[data-theme="light"] .hover\:bg-navy-800\/80:hover,
+html[data-theme="light"] .hover\:bg-navy-800:hover,
+html[data-theme="light"] .hover\:bg-navy-750:hover,
+html[data-theme="light"] .hover\:bg-white\/10:hover,
+html[data-theme="light"] .hover\:bg-white\/\[0\.015\]:hover {
+  background-color: #eef2ff !important;
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] aside nav a:not([aria-current="page"]):hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] aside nav a:not([aria-current="page"]):hover svg {
+  color: #693bff !important;
+}
+
+html[data-theme="light"] .border-navy-600,
+html[data-theme="light"] .border-navy-600\/80,
+html[data-theme="light"] .border-navy-600\/70,
+html[data-theme="light"] .border-navy-600\/60 {
+  border-color: #dbe2f0 !important;
+}
+
+html[data-theme="light"] .divide-navy-600\/60 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
+}
+
+html[data-theme="light"] .psi-divider {
+  background-color: #e2e8f0 !important;
+}
+
+html[data-theme="light"] .text-ink,
+html[data-theme="light"] .text-ink\/95,
+html[data-theme="light"] .hover\:text-ink:hover {
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] .text-mute {
+  color: #64748b !important;
+}
+
+html[data-theme="light"] .text-mute2,
+html[data-theme="light"] .group:hover .group-hover\:text-mute2 {
+  color: #334155 !important;
+}
+
+html[data-theme="light"] pre {
+  color: #1e293b !important;
+}
+
+html[data-theme="light"] .text-violet-400,
+html[data-theme="light"] .text-violet-300,
+html[data-theme="light"] .text-violet-200 {
+  color: #693bff !important;
+}
+
+html[data-theme="light"] .bg-violet-800,
+html[data-theme="light"] .bg-violet-800\/90,
+html[data-theme="light"] .bg-violet-800\/80,
+html[data-theme="light"] .bg-violet-800\/70,
+html[data-theme="light"] .bg-violet-800\/55,
+html[data-theme="light"] .bg-violet-800\/50,
+html[data-theme="light"] .bg-violet-800\/35 {
+  background-color: #ede9fe !important;
+}
+
+html[data-theme="light"] .border-violet-900,
+html[data-theme="light"] .border-violet-900\/80,
+html[data-theme="light"] .border-violet-900\/70,
+html[data-theme="light"] .border-violet-900\/60 {
+  border-color: #c4b5fd !important;
+}
+
+html[data-theme="light"] aside nav a[aria-current="page"] {
+  background-color: #693bff !important;
+  border-color: #693bff !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 18px -6px rgba(105, 59, 255, 0.55) !important;
+}
+
+html[data-theme="light"] aside nav a[aria-current="page"] svg {
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .text-emerald-400,
+html[data-theme="light"] .text-emerald-200 {
+  color: #059669 !important;
+}
+
+html[data-theme="light"] .text-sky-400,
+html[data-theme="light"] .text-sky-300 {
+  color: #0284c7 !important;
+}
+
+html[data-theme="light"] .text-amber-400,
+html[data-theme="light"] .text-amber-200 {
+  color: #d97706 !important;
+}
+
+html[data-theme="light"] .text-rose-400,
+html[data-theme="light"] .text-rose-300,
+html[data-theme="light"] .text-rose-200 {
+  color: #e11d48 !important;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(105, 59, 255, 0.35);
+  color: #f2f5ff;
+}
+
+::-moz-selection {
+  background: rgba(105, 59, 255, 0.35);
+  color: #f2f5ff;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 99px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.psi-card {
+  @apply rounded-[14px] border border-navy-600 bg-navy-700 transition-colors duration-200;
+}
+
+.psi-panel {
+  @apply rounded-[14px] border border-navy-600 bg-gradient-to-b from-navy-750 to-navy-700;
+}
+
+.psi-label {
+  @apply text-[10px] font-semibold uppercase tracking-[0.16em] text-mute;
+}
+
+.psi-input {
+  @apply h-10 w-full rounded-[10px] border border-navy-600 bg-navy-800 px-3 text-[12px] text-ink placeholder:text-mute outline-none transition focus:border-violet-900 focus:ring-1 focus:ring-violet-900/40;
+}
+
+.psi-chip {
+  @apply inline-flex items-center gap-1.5 rounded-full border border-navy-600 bg-navy-800/70 px-2.5 py-1 text-[10px] font-medium text-mute2;
+}
+
+.psi-divider {
+  @apply h-px w-full bg-navy-600/70;
+}
+
+.persian {
+  direction: rtl;
+  text-align: right;
+  font-family: Tahoma, "Segoe UI", Inter, sans-serif;
+  line-height: 1.9;
+}
+
+.mesh-glow {
+  background-image:
+    radial-gradient(60% 120% at 12% 0%, rgba(105, 59, 255, 0.28) 0%, transparent 60%),
+    radial-gradient(45% 90% at 92% 10%, rgba(77, 141, 255, 0.2) 0%, transparent 65%),
+    linear-gradient(140deg, #0c1933 0%, #0a152b 45%, #070e22 100%);
+}
+
+.grid-lines {
+  background-image:
+    linear-gradient(to right, rgba(145, 164, 203, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(145, 164, 203, 0.06) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom, black, transparent 80%);
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent 80%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

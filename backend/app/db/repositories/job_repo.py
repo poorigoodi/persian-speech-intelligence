@@ -43,7 +43,7 @@ class JobRepository:
                 ProcessingJob.status == ProcessingStatus.PENDING,
                 ProcessingJob.attempt_count <= max_retries,
             )
-            .order_by(ProcessingJob.created_at.asc())
+            .order_by(ProcessingJob.attempt_count.asc(), ProcessingJob.created_at.desc())
             .limit(1)
         )
         dialect = self.db.bind.dialect.name if self.db.bind is not None else ""
@@ -105,3 +105,23 @@ class JobRepository:
             job.error_message = "Job was stale and requeued after worker restart/timeout."
         self.db.flush()
         return len(jobs)
+
+    def requeue_interrupted_on_startup(self) -> int:
+        """Reset any jobs left in PROCESSING when a single worker starts up."""
+        stmt = select(ProcessingJob).where(
+            ProcessingJob.status == ProcessingStatus.PROCESSING,
+        )
+        jobs = list(self.db.execute(stmt).scalars())
+        for job in jobs:
+            job.status = ProcessingStatus.PENDING
+            job.attempt_count = max(0, job.attempt_count - 1)
+            job.current_step = "requeued_startup"
+            job.error_message = None
+        self.db.flush()
+        return len(jobs)
+
+    def delete_for_recording(self, recording_id: UUID) -> None:
+        stmt = select(ProcessingJob).where(ProcessingJob.recording_id == recording_id)
+        for job in self.db.execute(stmt).scalars():
+            self.db.delete(job)
+        self.db.flush()

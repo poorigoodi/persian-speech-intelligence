@@ -29,6 +29,7 @@ from app.services.analysis_pipeline import AnalysisPipeline
 from app.services.asr_polish_service import AsrPolishService
 from app.services.audio_service import AudioService
 from app.services.embedding_service import EmbeddingService
+from app.services.persian_nlp_fallback import build_smart_analysis
 from app.services.transcription_service import (
     TranscriptSegmentResult,
     TranscriptionResult,
@@ -61,6 +62,21 @@ class ProcessingWorker:
         )
         signal.signal(signal.SIGINT, self.request_stop)
         signal.signal(signal.SIGTERM, self.request_stop)
+
+        db = SessionLocal()
+        try:
+            requeued = JobRepository(db).requeue_interrupted_on_startup()
+            db.commit()
+            if requeued:
+                logger.info(
+                    "Requeued %s interrupted processing job(s) on worker startup.",
+                    requeued,
+                )
+        except Exception:
+            db.rollback()
+            logger.exception("Failed to requeue interrupted jobs on startup")
+        finally:
+            db.close()
 
         while not self._stop:
             processed = self.poll_once()
@@ -174,10 +190,23 @@ class ProcessingWorker:
                         )
                         db.commit()
 
-                bundle = await pipeline.run(
-                    transcript_text, on_progress=_on_progress
-                )
-                payload = bundle.as_db_payload()
+                try:
+                    bundle = await pipeline.run(
+                        transcript_text, on_progress=_on_progress
+                    )
+                    payload = bundle.as_db_payload()
+                except Exception as llm_exc:
+                    logger.warning(
+                        "LLM analysis unavailable for recording %s (%s); saving smart Persian NLP analysis.",
+                        recording.id,
+                        llm_exc,
+                    )
+                    seg_points = [
+                        s.normalized_text
+                        for s in stored_segments
+                        if s.normalized_text
+                    ]
+                    payload = build_smart_analysis(transcript_text, seg_points)
                 analysis_repo.upsert(recording.id, **payload)
             else:
                 analysis_repo.upsert(

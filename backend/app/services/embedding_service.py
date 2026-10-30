@@ -53,10 +53,17 @@ class EmbeddingModelManager:
                         self.settings.embedding_model,
                         self.settings.embedding_device,
                     )
-                    self._model = SentenceTransformer(
-                        self.settings.embedding_model,
-                        device=self.settings.embedding_device,
-                    )
+                    try:
+                        self._model = SentenceTransformer(
+                            self.settings.embedding_model,
+                            device=self.settings.embedding_device,
+                            local_files_only=True,
+                        )
+                    except Exception:
+                        self._model = SentenceTransformer(
+                            self.settings.embedding_model,
+                            device=self.settings.embedding_device,
+                        )
         return self._model
 
 

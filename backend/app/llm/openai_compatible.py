@@ -66,7 +66,10 @@ class OpenAICompatibleProvider(LLMProvider):
             payload["response_format"] = {"type": "json_object"}
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(
+                timeout=self.timeout,
+                trust_env=False,
+            ) as client:
                 response = await self._post(client, headers, payload)
                 if response.status_code >= 400 and response_json:
                     payload.pop("response_format", None)

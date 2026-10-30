@@ -5,9 +5,12 @@ from __future__ import annotations
 from uuid import UUID
 
 from app.core.logging import get_logger
+from app.db.repositories import TranscriptRepository
+from app.db.session import SessionLocal
 from app.llm.base import LLMMessage, LLMProvider
 from app.retrieval.retriever import TranscriptRetriever
 from app.schemas.chat import ChatResponse, EvidenceSegment
+from app.services.persian_nlp_fallback import answer_question_grounded
 
 logger = get_logger(__name__)
 
@@ -32,7 +35,12 @@ class QAService:
         self.retriever = retriever or TranscriptRetriever()
 
     async def answer(self, recording_id: UUID, question: str) -> ChatResponse:
-        hits = self.retriever.retrieve(recording_id, question)
+        try:
+            hits = self.retriever.retrieve(recording_id, question)
+        except Exception as exc:
+            logger.warning("FAISS retrieval fallback for %s: %s", recording_id, exc)
+            hits = []
+
         evidence = [
             EvidenceSegment(
                 segment_id=UUID(meta.segment_ids[0]) if meta.segment_ids else None,
@@ -43,6 +51,24 @@ class QAService:
             )
             for meta, score in hits
         ]
+
+        if not evidence:
+            db = SessionLocal()
+            try:
+                segs = TranscriptRepository(db).list_for_recording(recording_id)
+                evidence = [
+                    EvidenceSegment(
+                        segment_id=s.id,
+                        start_time=s.start_time,
+                        end_time=s.end_time,
+                        text=s.normalized_text or s.original_text,
+                        score=1.0,
+                    )
+                    for s in segs
+                    if (s.normalized_text or s.original_text).strip()
+                ]
+            finally:
+                db.close()
 
         if not evidence:
             return ChatResponse(
@@ -71,9 +97,19 @@ class QAService:
                 ),
             ),
         ]
-        response = await self.llm.chat(messages, temperature=0.1)
-        answer = (response.content or "").strip() or REFUSAL_FA
-        grounded = REFUSAL_FA not in answer
+        try:
+            response = await self.llm.chat(messages, temperature=0.1)
+            answer = (response.content or "").strip() or REFUSAL_FA
+            grounded = REFUSAL_FA not in answer
+        except Exception as exc:
+            logger.warning(
+                "External LLM unavailable for QA on %s (%s); using grounded local QA fallback.",
+                recording_id,
+                exc,
+            )
+            answer, grounded = answer_question_grounded(
+                question, [ev.text for ev in evidence]
+            )
 
         return ChatResponse(
             recording_id=recording_id,

@@ -6,9 +6,10 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi.responses import FileResponse
 
 from app.api.deps import AppSettings, DbSession, require_api_key
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import NotFoundError
 from app.db.repositories import (
     AnalysisRepository,
     JobRepository,
@@ -103,6 +104,21 @@ def get_recording(recording_id: UUID, db: DbSession) -> RecordingDetail:
     return RecordingDetail.model_validate(recording)
 
 
+@router.get("/{recording_id}/audio")
+def stream_audio(recording_id: UUID, db: DbSession):
+    recording = RecordingRepository(db).get(recording_id)
+    if recording is None:
+        raise NotFoundError("Recording not found.")
+    path = Path(recording.storage_path)
+    if not path.is_file():
+        raise NotFoundError("Audio file not found on disk.")
+    return FileResponse(
+        path=path,
+        media_type=recording.content_type or "audio/mpeg",
+        filename=recording.original_filename,
+    )
+
+
 @router.get("/{recording_id}/status", response_model=JobStatusResponse)
 def get_status(recording_id: UUID, db: DbSession) -> JobStatusResponse:
     recording = RecordingRepository(db).get(recording_id)
@@ -134,10 +150,8 @@ def delete_recording(
     if recording is None:
         raise NotFoundError("Recording not found.")
 
-    if recording.processing_status == ProcessingStatus.PROCESSING:
-        raise ConflictError("Cannot delete a recording while it is processing.")
-
     storage_path = recording.storage_path
+    JobRepository(db).delete_for_recording(recording_id)
     TranscriptRepository(db).delete_for_recording(recording_id)
     AnalysisRepository(db).delete_for_recording(recording_id)
     recording_repo.delete(recording)

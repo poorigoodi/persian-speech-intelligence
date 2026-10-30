@@ -26,6 +26,9 @@ _RULE_REPLACEMENTS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"میخوام"), "می‌خوام"),
     (re.compile(r"میخواهم"), "می‌خواهم"),
     (re.compile(r"صحبت\s*کنم"), "صحبت کنم"),
+    (re.compile(r"پوریا\s*کو\s*درزیم|پوریاکودرزیم"), "پوریا گودرزی‌ام"),
+    (re.compile(r"پوریا\s*کو\s*درزی"), "پوریا گودرزی"),
+    (re.compile(r"چارت\s+شاخه"), "چهار تا شاخه"),
 ]
 
 

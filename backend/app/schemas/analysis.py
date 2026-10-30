@@ -34,6 +34,10 @@ class SentimentResult(BaseModel):
         default=None,
         description="Optional uncalibrated model score; not a calibrated probability.",
     )
+    emotions: dict[str, float] | None = None
+    language: str | None = None
+    language_breakdown: dict[str, float] | None = None
+    source: str | None = None
     disclaimer: str = (
         "Text-based sentiment of transcript language only. "
         "Does not infer speaker emotional or psychological state. "

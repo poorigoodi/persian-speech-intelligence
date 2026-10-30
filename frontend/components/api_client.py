@@ -73,13 +73,23 @@ class BackendClient:
         files = {
             "file": (filename, file_bytes, content_type or "application/octet-stream")
         }
-        with httpx.Client(timeout=300.0) as client:
-            response = client.post(
-                self._url("/recordings"),
-                files=files,
-                headers=self._headers(),
-            )
-            return self._handle(response)
+        timeout = httpx.Timeout(120.0, connect=10.0)
+        try:
+            with httpx.Client(timeout=timeout, trust_env=False) as client:
+                response = client.post(
+                    self._url("/recordings"),
+                    files=files,
+                    headers=self._headers(),
+                )
+                return self._handle(response)
+        except httpx.TimeoutException as exc:
+            raise APIError(
+                "Upload timed out — is the API busy or is SQLite locked by the worker? "
+                "Retry once; if it keeps hanging, restart uvicorn.",
+                status_code=None,
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise APIError(f"Cannot reach API at {self.base_url}: {exc}") from exc
 
     def get_recording(self, recording_id: str) -> dict:
         with httpx.Client(timeout=self.timeout) as client:

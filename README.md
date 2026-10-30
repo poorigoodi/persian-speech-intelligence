@@ -1,6 +1,6 @@
 # Persian Speech Intelligence
 
-![Persian Speech Intelligence](persian-speech-intelligence.png)
+![Persian Speech Intelligence](docs/assets/persian-speech-intelligence.png)
 
 AI-powered Persian speech analysis and conversational intelligence platform.
 
@@ -8,11 +8,28 @@ Upload Persian audio (meetings, interviews, lectures, support calls). The system
 
 Portfolio-ready AI engineering project: modular architecture, async processing, Docker, tests, and clear docs.
 
-## Gallery
+## Screenshots & Gallery
 
-| Pipeline | Analysis UI |
-|:---:|:---:|
-| ![Audio → transcript → insights](docs/assets/psi-pipeline.jpg) | ![Persian analysis dashboard mockup](docs/assets/psi-analysis-ui.jpg) |
+### Pipeline Architecture
+
+![Audio → transcript → insights](docs/assets/psi-pipeline.jpg)
+
+### Application UI
+
+#### Audio Analysis Dashboard
+Interactive waveform player, transcript display, Persian language detection, text-derived emotion analysis, and AI insights sidebar.
+
+![Audio Analysis Dashboard](docs/assets/dashboard-audio-analysis.png)
+
+#### Deep Speech Analysis & Insights
+Structured insights breakdown including topic extraction, emotion distribution, speaker timeline, executive summary, and action items.
+
+![Speech Analysis Insights](docs/assets/speech-analysis-insights.png)
+
+#### Grounded AI Chat (RAG)
+Conversational assistant grounded directly in the transcribed audio with timestamp and score citations.
+
+![Grounded AI Chat](docs/assets/ai-chat-rag.png)
 
 ## Main features
 
@@ -100,6 +117,8 @@ More fixtures: `sample_data/finetune/` and [sample_data/README.md](sample_data/R
 persian-speech-intelligence/
 ├── backend/           # FastAPI, worker, LLM, ASR, embeddings, tests
 ├── frontend/          # Streamlit UI
+├── web/               # Modern React + Tailwind UI
+├── training/          # LoRA fine-tuning scripts and configs
 ├── scripts/           # utilities, Tk test client
 ├── sample_data/       # fixtures / evaluation manifests
 ├── evaluation/        # ASR / retrieval / analysis eval scripts
@@ -205,9 +224,11 @@ Analysis uses **one combined LLM request** by default. Set `SENTIMENT_USE_SEPARA
 ## Usage (UI)
 
 1. Open Streamlit at http://localhost:8501  
-2. Upload a Persian recording → wait until status is `completed`  
-3. Open **Transcript** / **Analysis** / **Chat** / **Export** pages  
-4. Download `analysis_summary`-style JSON from Export (`format=json`)
+2. **Upload audio** → wait until status is `completed`  
+3. Open **Speech analysis** / **Transcript** / **Ask AI** / **Export & settings**  
+4. Download analysis JSON from Export (`format=json`)
+
+The dashboard UI is English (LTR). Transcript / summary content stays in Persian when the audio is Persian.
 
 API examples are in the [Example](#example) section above.
 

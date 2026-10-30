@@ -49,10 +49,12 @@ storage/uploads/*
 storage/temp/*
 storage/vector_indexes/*
 storage/models/*
+storage/exports/*
 !storage/uploads/.gitkeep
 !storage/temp/.gitkeep
 !storage/vector_indexes/.gitkeep
 !storage/models/.gitkeep
+!storage/exports/.gitkeep
 backend/storage/
 *.db
 sample_data/audio/*.wav
@@ -83,3 +85,9 @@ evaluation/results/*
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Node / Web Frontend
+node_modules/
+.vite/
+*.tsbuildinfo
+web/dist/
