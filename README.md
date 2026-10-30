@@ -10,10 +10,6 @@ Portfolio-ready AI engineering project: modular architecture, async processing, 
 
 ## Screenshots & Gallery
 
-### Pipeline Architecture
-
-![Audio → transcript → insights](docs/assets/psi-pipeline.jpg)
-
 ### Application UI
 
 #### Audio Analysis Dashboard
