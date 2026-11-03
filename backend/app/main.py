@@ -30,6 +30,17 @@ async def lifespan(_app: FastAPI):
 
         Base.metadata.create_all(bind=engine)
         logger.info("SQLite schema ready (create_all)")
+    try:
+        from app.db.session import SessionLocal
+        from app.services.recording_repair import repair_all_recordings
+
+        db = SessionLocal()
+        try:
+            repair_all_recordings(db)
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("Startup recording repair skipped: %s", exc)
     logger.info(
         "Starting %s v%s (%s)",
         settings.app_name,

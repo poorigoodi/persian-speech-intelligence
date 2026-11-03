@@ -218,7 +218,7 @@ class TranscriptionService:
             "condition_on_previous_text": self.settings.whisper_condition_on_previous_text,
             "compression_ratio_threshold": 2.4,
             "log_prob_threshold": -1.0,
-            "no_speech_threshold": 0.6,
+            "no_speech_threshold": 0.85,
         }
 
     def _run(self, model, audio_path: Path, kwargs: dict):
@@ -325,10 +325,10 @@ class TranscriptionService:
                 continue
             avg_lp = getattr(seg, "avg_logprob", None)
             no_sp = getattr(seg, "no_speech_prob", None)
-            if is_persian and self._is_prompt_echo(text, prompt_texts):
+            if self._is_prompt_echo(text, prompt_texts):
                 dropped += 1
                 continue
-            if no_sp is not None and avg_lp is not None and no_sp > 0.6 and avg_lp < -1.0:
+            if no_sp is not None and avg_lp is not None and no_sp > 0.85 and avg_lp < -1.0:
                 dropped += 1
                 continue
             cleaned = apply_asr_rules(text) if is_persian else text
@@ -343,9 +343,48 @@ class TranscriptionService:
                 )
             )
 
+        duration = float(getattr(info, "duration", 0.0) or 0.0)
+        # If Silero VAD filtered out almost everything on a long track (e.g. a song with heavy music/bass),
+        # retry once with vad_filter=False so vocal lines are captured.
+        if duration > 20.0 and len(segments) <= 2 and kwargs.get("vad_filter"):
+            logger.info(
+                "VAD produced only %s segment(s) on %.1fs audio; retrying with vad_filter=False.",
+                len(segments),
+                duration,
+            )
+            retry_kwargs = {
+                **kwargs,
+                "vad_filter": False,
+                "no_speech_threshold": None,
+                "log_prob_threshold": None,
+                "beam_size": min(2, self.settings.whisper_beam_size),
+                "best_of": min(2, self.settings.whisper_best_of),
+            }
+            try:
+                retry_iter, _retry_info = self._run(self.model_manager.get_model(), audio_path, retry_kwargs)
+                retry_segments: list[TranscriptSegmentResult] = []
+                for seg in retry_iter:
+                    text = (seg.text or "").strip()
+                    if not text or self._is_prompt_echo(text, prompt_texts):
+                        continue
+                    cleaned = apply_asr_rules(text) if is_persian else text
+                    retry_segments.append(
+                        TranscriptSegmentResult(
+                            start=float(seg.start or 0.0),
+                            end=float(seg.end or 0.0),
+                            text=cleaned,
+                            normalized_text=normalize_persian_text(cleaned) if is_persian else cleaned,
+                            avg_logprob=getattr(seg, "avg_logprob", None),
+                            no_speech_prob=getattr(seg, "no_speech_prob", None),
+                        )
+                    )
+                if len(retry_segments) > len(segments):
+                    segments = retry_segments
+            except Exception as retry_exc:
+                logger.warning("Retry without VAD failed: %s", retry_exc)
+
         if dropped:
             logger.info("Dropped %s hallucinated/low-confidence segments.", dropped)
-        duration = float(getattr(info, "duration", 0.0) or 0.0)
         if not segments:
             logger.info("Transcription produced no speech segments (possibly silent audio).")
 

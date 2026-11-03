@@ -23,9 +23,9 @@ const ICONS = {
 };
 
 const TONES = {
-  success: "border-emerald-400/30 bg-emerald-400/10 text-emerald-100",
-  error: "border-rose-400/30 bg-rose-400/10 text-rose-100",
-  info: "border-violet-500/30 bg-violet-500/10 text-violet-100",
+  success: "border-success/35 bg-navy-800 text-success",
+  error: "border-danger/35 bg-navy-800 text-danger",
+  info: "border-violet-900/60 bg-navy-800 text-violet-300",
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {

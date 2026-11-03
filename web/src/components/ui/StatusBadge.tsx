@@ -1,10 +1,10 @@
 import type { ProcessingStatus } from "@/lib/types";
 
 const map: Record<ProcessingStatus, string> = {
-  completed: "text-emerald-400",
-  processing: "text-sky-400",
-  pending: "text-amber-400",
-  failed: "text-rose-400",
+  completed: "text-success",
+  processing: "text-electric",
+  pending: "text-warning",
+  failed: "text-danger",
 };
 
 export function StatusBadge({ status }: { status: ProcessingStatus | string }) {

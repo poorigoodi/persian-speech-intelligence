@@ -35,6 +35,7 @@ from app.services.transcription_service import (
     TranscriptionResult,
     TranscriptionService,
 )
+from app.utils.audio_metadata import get_recording_audio_metadata
 
 logger = get_logger(__name__)
 
@@ -130,6 +131,10 @@ class ProcessingWorker:
             job_repo.update_progress(job, progress=5, current_step="preprocess")
             db.commit()
 
+            # Refresh settings from .env on each job so config updates apply without restarting worker
+            self.settings = Settings()
+            self.transcription_service.settings = self.settings
+
             source = Path(recording.storage_path)
             wav_path = self.audio_service.preprocess_for_asr(source, recording.id)
 
@@ -190,9 +195,14 @@ class ProcessingWorker:
                         )
                         db.commit()
 
+                audio_meta = get_recording_audio_metadata(
+                    recording.storage_path, upload_dir=self.settings.upload_dir
+                )
                 try:
                     bundle = await pipeline.run(
-                        transcript_text, on_progress=_on_progress
+                        transcript_text,
+                        on_progress=_on_progress,
+                        audio_metadata=audio_meta,
                     )
                     payload = bundle.as_db_payload()
                 except Exception as llm_exc:
@@ -206,7 +216,9 @@ class ProcessingWorker:
                         for s in stored_segments
                         if s.normalized_text
                     ]
-                    payload = build_smart_analysis(transcript_text, seg_points)
+                    payload = build_smart_analysis(
+                        transcript_text, seg_points, audio_metadata=audio_meta
+                    )
                 analysis_repo.upsert(recording.id, **payload)
             else:
                 analysis_repo.upsert(

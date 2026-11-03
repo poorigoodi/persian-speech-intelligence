@@ -25,9 +25,13 @@ export default {
           900: "rgb(var(--c-violet-900) / <alpha-value>)",
         },
         electric: "rgb(var(--c-electric) / <alpha-value>)",
+        success: "rgb(var(--c-success) / <alpha-value>)",
+        warning: "rgb(var(--c-warning) / <alpha-value>)",
+        danger: "rgb(var(--c-danger) / <alpha-value>)",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["Inter", "Vazirmatn", "system-ui", "-apple-system", "sans-serif"],
+        persian: ["Vazirmatn", "Inter", "system-ui", "sans-serif"],
       },
       boxShadow: {
         glow: "0 0 0 1px rgba(105,59,255,0.35), 0 12px 40px rgba(8,12,40,0.45)",

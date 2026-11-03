@@ -28,6 +28,8 @@ from app.schemas.recording import (
 )
 from app.services.audio_service import AudioService
 from app.services.embedding_service import EmbeddingService
+from app.services.recording_repair import ensure_recording_repaired
+from app.utils.audio_metadata import get_recording_audio_metadata, resolve_audio_file_path
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
@@ -90,6 +92,8 @@ def list_recordings(
     items, total = RecordingRepository(db).list(
         limit=limit, offset=offset, status=status_filter
     )
+    for item in items:
+        ensure_recording_repaired(db, item)
     return RecordingListResponse(
         items=[RecordingSummary.model_validate(item) for item in items],
         total=total,
@@ -97,24 +101,46 @@ def list_recordings(
 
 
 @router.get("/{recording_id}", response_model=RecordingDetail)
-def get_recording(recording_id: UUID, db: DbSession) -> RecordingDetail:
+def get_recording(recording_id: UUID, db: DbSession, settings: AppSettings) -> RecordingDetail:
     recording = RecordingRepository(db).get(recording_id)
     if recording is None:
         raise NotFoundError("Recording not found.")
-    return RecordingDetail.model_validate(recording)
+    ensure_recording_repaired(db, recording)
+    detail = RecordingDetail.model_validate(recording)
+    detail.audio_metadata = get_recording_audio_metadata(
+        recording.storage_path, upload_dir=settings.upload_dir
+    )
+    return detail
+
+
+_MEDIA_TYPES = {
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".mp4": "audio/mp4",
+    ".wav": "audio/wav",
+    ".ogg": "audio/ogg",
+    ".flac": "audio/flac",
+    ".webm": "audio/webm",
+}
+
+
+def resolve_recording_audio_path(storage_path: str, settings: AppSettings) -> Path | None:
+    return resolve_audio_file_path(storage_path, upload_dir=settings.upload_dir)
 
 
 @router.get("/{recording_id}/audio")
-def stream_audio(recording_id: UUID, db: DbSession):
+def stream_audio(recording_id: UUID, db: DbSession, settings: AppSettings):
     recording = RecordingRepository(db).get(recording_id)
     if recording is None:
         raise NotFoundError("Recording not found.")
-    path = Path(recording.storage_path)
-    if not path.is_file():
+    path = resolve_recording_audio_path(recording.storage_path, settings)
+    if path is None:
         raise NotFoundError("Audio file not found on disk.")
+    ext = path.suffix.lower()
+    media_type = _MEDIA_TYPES.get(ext) or recording.content_type or "audio/mpeg"
     return FileResponse(
         path=path,
-        media_type=recording.content_type or "audio/mpeg",
+        media_type=media_type,
         filename=recording.original_filename,
     )
 

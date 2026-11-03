@@ -20,7 +20,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useAnalysis, useTranscript } from "@/hooks/useRecordingData";
 import {
   asRecord,
-  derivedConfidence,
+  confidenceMetrics,
   entityCount,
   fileStem,
   formatDuration,
@@ -35,6 +35,7 @@ export function AnalysisPage() {
   const { push } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [checkedActions, setCheckedActions] = useState<Record<string, boolean>>({});
+  const [insightLang, setInsightLang] = useState<"fa" | "en">("fa");
 
   const completedRecordings = useMemo(
     () => recordings.filter((r) => r.processing_status === "completed"),
@@ -54,7 +55,8 @@ export function AnalysisPage() {
   const analysis = useAnalysis(isCompleted ? id : null);
 
   const segments = transcript.data?.segments ?? [];
-  const confidence = derivedConfidence(segments);
+  const confStats = useMemo(() => confidenceMetrics(segments), [segments]);
+  const confidence = confStats.score;
   const analysisData = analysis.data;
 
   const detailed = asRecord(analysisData?.detailed_summary);
@@ -90,11 +92,16 @@ export function AnalysisPage() {
     return topics.map((t) => t.name);
   }, [entities.keywords, topics]);
 
-  const totalEntities = useMemo(() => {
-    if (!analysisData?.extracted_entities) return segments.length > 0 ? 1 : 0;
-    const count = entityCount(analysisData.extracted_entities);
-    return count > 0 ? count : segments.length > 0 ? 1 : 0;
-  }, [analysisData, segments.length]);
+  const peopleList = useMemo(() => textList(entities.people), [entities.people]);
+  const organizationsList = useMemo(
+    () => textList(entities.organizations),
+    [entities.organizations],
+  );
+
+  const totalEntities = useMemo(
+    () => entityCount(analysisData?.extracted_entities),
+    [analysisData?.extracted_entities],
+  );
 
   const sentimentLabel =
     typeof sentiment.label === "string" && sentiment.label ? sentiment.label : "Neutral";
@@ -111,9 +118,9 @@ export function AnalysisPage() {
       return [
         { name: "Joy / Positive", pct: Number(rawEmotions.joy ?? 0), color: "bg-violet-500" },
         { name: "Neutral", pct: Number(rawEmotions.neutral ?? 0), color: "bg-electric" },
-        { name: "Sadness", pct: Number(rawEmotions.sadness ?? 0), color: "bg-cyan-400" },
-        { name: "Anger", pct: Number(rawEmotions.anger ?? 0), color: "bg-amber-400" },
-        { name: "Fear / Worry", pct: Number(rawEmotions.fear ?? 0), color: "bg-rose-400" },
+        { name: "Sadness", pct: Number(rawEmotions.sadness ?? 0), color: "bg-violet-400" },
+        { name: "Anger", pct: Number(rawEmotions.anger ?? 0), color: "bg-violet-600" },
+        { name: "Fear / Worry", pct: Number(rawEmotions.fear ?? 0), color: "bg-electric" },
       ];
     }
     const label = sentimentLabel.toLowerCase();
@@ -121,23 +128,23 @@ export function AnalysisPage() {
       return [
         { name: "Positive", pct: 42, color: "bg-violet-500" },
         { name: "Neutral", pct: 36, color: "bg-electric" },
-        { name: "Sadness", pct: 10, color: "bg-cyan-400" },
-        { name: "Anger", pct: 7, color: "bg-amber-400" },
+        { name: "Sadness", pct: 10, color: "bg-violet-400" },
+        { name: "Anger", pct: 7, color: "bg-violet-600" },
       ];
     }
     if (label === "negative") {
       return [
         { name: "Positive", pct: 12, color: "bg-violet-500" },
         { name: "Neutral", pct: 28, color: "bg-electric" },
-        { name: "Sadness", pct: 34, color: "bg-cyan-400" },
-        { name: "Anger", pct: 26, color: "bg-amber-400" },
+        { name: "Sadness", pct: 34, color: "bg-violet-400" },
+        { name: "Anger", pct: 26, color: "bg-violet-600" },
       ];
     }
     return [
       { name: "Positive", pct: 24, color: "bg-violet-500" },
       { name: "Neutral", pct: 56, color: "bg-electric" },
-      { name: "Sadness", pct: 12, color: "bg-cyan-400" },
-      { name: "Anger", pct: 8, color: "bg-amber-400" },
+      { name: "Sadness", pct: 12, color: "bg-violet-400" },
+      { name: "Anger", pct: 8, color: "bg-violet-600" },
     ];
   }, [sentiment, sentimentLabel]);
 
@@ -150,6 +157,42 @@ export function AnalysisPage() {
     const top = textList(analysisData?.decisions);
     return top.length ? top : stringList(detailed.decisions);
   }, [analysisData, detailed.decisions]);
+
+  const bilingualInsights = useMemo(() => {
+    if (analysisData?.bilingual_insights) return analysisData.bilingual_insights;
+    const fromDetailed = asRecord(detailed.bilingual_insights);
+    if (fromDetailed && (fromDetailed.fa || fromDetailed.en)) {
+      return fromDetailed as {
+        fa?: { summary?: string; key_points?: string[]; decisions?: string[] };
+        en?: { summary?: string; key_points?: string[]; decisions?: string[] };
+      };
+    }
+    return null;
+  }, [analysisData?.bilingual_insights, detailed.bilingual_insights]);
+
+  const currentInsight = useMemo(() => {
+    if (bilingualInsights) {
+      const active = bilingualInsights[insightLang];
+      if (active) {
+        return {
+          summary: active.summary || analysisData?.short_summary || "",
+          keyPoints:
+            Array.isArray(active.key_points) && active.key_points.length > 0
+              ? active.key_points
+              : keyPoints,
+          decisions:
+            Array.isArray(active.decisions) && active.decisions.length > 0
+              ? active.decisions
+              : decisions,
+        };
+      }
+    }
+    return {
+      summary: analysisData?.short_summary || "",
+      keyPoints,
+      decisions,
+    };
+  }, [bilingualInsights, insightLang, analysisData?.short_summary, keyPoints, decisions]);
 
   const filteredSegments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -239,17 +282,28 @@ export function AnalysisPage() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-x-10 gap-y-3 text-[14px] font-semibold text-ink">
-          <div>
+          <div
+            title={
+              confStats.meanLogProb != null
+                ? `Whisper STT acoustic confidence: duration-weighted exp(avg_logprob = ${confStats.meanLogProb}) across ${confStats.segmentCount} segment(s) (${confStats.wordCount} words).`
+                : "Speech-to-Text model confidence derived from Whisper segment log-probabilities."
+            }
+          >
             <span className="text-violet-400">
               {confidence != null ? `${confidence}%` : "—"}
             </span>{" "}
-            Confidence
+            ASR Confidence{" "}
+            {confStats.segmentCount > 0 && (
+              <span className="text-[11px] font-normal text-mute">
+                ({confStats.level} · {confStats.segmentCount} segs, {confStats.wordCount} words)
+              </span>
+            )}
           </div>
           <div>
             <span className="text-electric">{String(topics.length).padStart(2, "0")}</span> Topics
           </div>
           <div>
-            <span className="text-emerald-400">{totalEntities}</span> Entities
+            <span className="text-violet-400">{totalEntities}</span> Entities
           </div>
           <div>
             <span className="text-ink">{formatDuration(recording?.duration_seconds)}</span> Duration
@@ -361,25 +415,55 @@ export function AnalysisPage() {
       {/* Real Grounded Summary, Key Points, Action Items & Transcript */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Sparkles className="size-4 text-violet-400" />
-              <h2 className="text-[13px] font-semibold text-ink">Executive Summary & Key Points</h2>
+              <h2 className="text-[13px] font-semibold text-ink">
+                {insightLang === "fa" ? "خلاصه اجرایی و نکات کلیدی" : "Executive Summary & Key Points"}
+              </h2>
             </div>
-            {analysisData?.short_summary && (
-              <button
-                type="button"
-                onClick={() => {
-                  void navigator.clipboard
-                    .writeText(analysisData.short_summary ?? "")
-                    .then(() => push("Summary copied to clipboard.", "success"));
-                }}
-                className="text-mute transition hover:text-ink"
-                aria-label="Copy summary"
-              >
-                <Copy className="size-3.5" />
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              <div className="inline-flex items-center rounded-full border border-navy-600 bg-navy-800 p-0.5 text-[10px] font-medium">
+                <button
+                  type="button"
+                  onClick={() => setInsightLang("fa")}
+                  className={`rounded-full px-2 py-0.5 transition ${
+                    insightLang === "fa"
+                      ? "bg-violet-600 text-white font-semibold shadow-sm"
+                      : "text-mute hover:text-ink"
+                  }`}
+                  title="نمایش به زبان فارسی"
+                >
+                  FA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInsightLang("en")}
+                  className={`rounded-full px-2 py-0.5 transition ${
+                    insightLang === "en"
+                      ? "bg-violet-600 text-white font-semibold shadow-sm"
+                      : "text-mute hover:text-ink"
+                  }`}
+                  title="Display in English"
+                >
+                  EN
+                </button>
+              </div>
+              {currentInsight.summary && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(currentInsight.summary ?? "")
+                      .then(() => push(insightLang === "fa" ? "خلاصه کپی شد." : "Summary copied to clipboard.", "success"));
+                  }}
+                  className="text-mute transition hover:text-ink"
+                  aria-label="Copy summary"
+                >
+                  <Copy className="size-3.5" />
+                </button>
+              )}
+            </div>
           </div>
 
           {analysis.loading ? (
@@ -389,19 +473,41 @@ export function AnalysisPage() {
             </div>
           ) : (
             <div className="mt-3 space-y-3">
-              <p className="whitespace-pre-wrap text-[12px] leading-[1.85] text-mute2" dir="auto">
-                {analysisData?.short_summary || "Analysis summary is not available yet."}
+              <p
+                className={`whitespace-pre-wrap text-[12px] leading-[1.85] text-mute2 ${
+                  insightLang === "fa" ? "font-persian text-right" : "text-left"
+                }`}
+                dir={insightLang === "fa" ? "rtl" : "ltr"}
+              >
+                {currentInsight.summary ||
+                  (insightLang === "fa"
+                    ? "خلاصه تحلیلی هنوز در دسترس نیست."
+                    : "Analysis summary is not available yet.")}
               </p>
 
-              {keyPoints.length > 0 && (
+              {currentInsight.keyPoints.length > 0 && (
                 <div className="border-t border-navy-600/60 pt-3">
-                  <p className="flex items-center gap-1.5 text-[11px] font-semibold text-ink">
+                  <p
+                    className={`flex items-center gap-1.5 text-[11px] font-semibold text-ink ${
+                      insightLang === "fa" ? "font-persian flex-row-reverse justify-end" : ""
+                    }`}
+                  >
                     <CheckCircle2 className="size-3.5 text-violet-400" />
-                    Key Points
+                    {insightLang === "fa" ? "نکات کلیدی" : "Key Points"}
                   </p>
-                  <ul className="mt-2 space-y-1.5 text-[11.5px] text-mute2" dir="auto">
-                    {keyPoints.map((pt) => (
-                      <li key={pt} className="flex items-start gap-2">
+                  <ul
+                    className={`mt-2 space-y-1.5 text-[11.5px] text-mute2 ${
+                      insightLang === "fa" ? "font-persian text-right" : "text-left"
+                    }`}
+                    dir={insightLang === "fa" ? "rtl" : "ltr"}
+                  >
+                    {currentInsight.keyPoints.map((pt) => (
+                      <li
+                        key={pt}
+                        className={`flex items-start gap-2 ${
+                          insightLang === "fa" ? "flex-row-reverse text-right" : ""
+                        }`}
+                      >
                         <span className="mt-2 size-1.5 shrink-0 rounded-full bg-violet-400" />
                         <span>{pt}</span>
                       </li>
@@ -423,7 +529,7 @@ export function AnalysisPage() {
             <div>
               <p className="text-[11px] font-semibold text-mute">Action Items</p>
               {actions.length === 0 ? (
-                <p className="mt-1 text-[11.5px] text-mute/70">No action items extracted.</p>
+                <p className="mt-1 text-[11.5px] text-mute">No action items extracted.</p>
               ) : (
                 <ul className="mt-2 space-y-1.5">
                   {actions.map((act) => {
@@ -450,11 +556,18 @@ export function AnalysisPage() {
               )}
             </div>
 
-            {decisions.length > 0 && (
+            {currentInsight.decisions.length > 0 && (
               <div className="border-t border-navy-600/60 pt-3">
-                <p className="text-[11px] font-semibold text-mute">Decisions</p>
-                <ul className="mt-1.5 space-y-1 text-[11.5px] text-mute2" dir="auto">
-                  {decisions.map((d) => (
+                <p className="text-[11px] font-semibold text-mute">
+                  {insightLang === "fa" ? "تصمیمات و جمع‌بندی‌ها" : "Decisions"}
+                </p>
+                <ul
+                  className={`mt-1.5 space-y-1 text-[11.5px] text-mute2 ${
+                    insightLang === "fa" ? "font-persian text-right" : "text-left"
+                  }`}
+                  dir={insightLang === "fa" ? "rtl" : "ltr"}
+                >
+                  {currentInsight.decisions.map((d) => (
                     <li key={d}>• {d}</li>
                   ))}
                 </ul>
@@ -466,23 +579,50 @@ export function AnalysisPage() {
                 <Users className="size-3.5" />
                 People & Organizations
               </p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {[...stringList(entities.people), ...stringList(entities.organizations)].length ===
-                0 ? (
-                  <span className="text-[11px] text-mute/70">None extracted</span>
-                ) : (
-                  [...stringList(entities.people), ...stringList(entities.organizations)].map(
-                    (entity) => (
-                      <span
-                        key={entity}
-                        dir="auto"
-                        className="rounded-full border border-navy-600 bg-navy-800 px-2.5 py-0.5 text-[11px] text-mute2"
-                      >
-                        {entity}
+              <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+                <div className="rounded-[9px] border border-navy-600 bg-navy-800/50 p-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-mute">
+                    People
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {peopleList.length === 0 ? (
+                      <span className="text-[11px] italic text-mute">No people detected</span>
+                    ) : (
+                      peopleList.map((person) => (
+                        <span
+                          key={person}
+                          dir="auto"
+                          className="rounded-full border border-navy-600 bg-navy-800 px-2.5 py-0.5 text-[11px] font-medium text-ink"
+                        >
+                          {person}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-[9px] border border-navy-600 bg-navy-800/50 p-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-mute">
+                    Organizations
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {organizationsList.length === 0 ? (
+                      <span className="text-[11px] italic text-mute">
+                        No organizations detected
                       </span>
-                    ),
-                  )
-                )}
+                    ) : (
+                      organizationsList.map((org) => (
+                        <span
+                          key={org}
+                          dir="auto"
+                          className="rounded-full border border-navy-600 bg-navy-800 px-2.5 py-0.5 text-[11px] font-medium text-ink"
+                        >
+                          {org}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

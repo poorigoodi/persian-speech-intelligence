@@ -15,8 +15,14 @@ from app.services.export_service import ExportService
 from app.services.persian_nlp_fallback import (
     ANALYSIS_SOURCE,
     build_smart_analysis,
+    detect_text_language,
     emotions_for_text,
+    extract_locations,
+    extract_organizations,
+    extract_people,
 )
+from app.services.recording_repair import ensure_recording_repaired
+from app.utils.audio_metadata import get_recording_audio_metadata
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
@@ -27,26 +33,32 @@ def get_analysis(recording_id: UUID, db: DbSession) -> AnalysisResponse:
     if recording is None:
         raise NotFoundError("Recording not found.")
 
+    ensure_recording_repaired(db, recording)
     analysis_repo = AnalysisRepository(db)
     analysis = analysis_repo.get_for_recording(recording_id)
     if analysis is None:
         raise NotFoundError("Analysis not available yet.")
 
+    audio_meta = get_recording_audio_metadata(recording.storage_path)
     sentiment_dict = analysis.sentiment if isinstance(analysis.sentiment, dict) else {}
     source = str(sentiment_dict.get("source") or "")
-    explanation = str(sentiment_dict.get("explanation", ""))
-    legacy_local_markers = (
-        "سرویس LLM محلی",
-        "لحن گفتار مثبت، شفاف",
-        "لحن کلی گفتار متعادل، خبری و آموزشی است",
-        "در متن گفتار به چالش‌ها",
-    )
-    is_legacy_local = (not source and any(m in explanation for m in legacy_local_markers)) or (
-        source.startswith("local_nlp") and source != ANALYSIS_SOURCE
-    )
+    is_legacy_local = source != "llm" and source != ANALYSIS_SOURCE
     needs_emotions = not isinstance(sentiment_dict.get("emotions"), dict)
+    entities_dict = (
+        dict(analysis.extracted_entities)
+        if isinstance(analysis.extracted_entities, dict)
+        else {}
+    )
+    missing_meta_artist = bool(
+        audio_meta.get("has_metadata")
+        and audio_meta.get("artist")
+        and not any(
+            str(p).lower() == str(audio_meta["artist"]).lower()
+            for p in (entities_dict.get("people") or [])
+        )
+    )
 
-    if is_legacy_local or needs_emotions:
+    if is_legacy_local or needs_emotions or missing_meta_artist:
         segments = TranscriptRepository(db).list_for_recording(recording_id)
         seg_texts = [
             s.normalized_text or s.original_text
@@ -56,14 +68,46 @@ def get_analysis(recording_id: UUID, db: DbSession) -> AnalysisResponse:
         transcript_text = " ".join(seg_texts).strip()
         if transcript_text:
             if is_legacy_local:
-                payload = build_smart_analysis(transcript_text, seg_texts)
+                payload = build_smart_analysis(
+                    transcript_text, seg_texts, audio_metadata=audio_meta
+                )
                 analysis = analysis_repo.upsert(recording_id, **payload)
             else:
-                # Real LLM analysis: keep it, only attach measured emotions/language.
+                # Real LLM analysis: keep it, attach measured emotions/language + verified entities/metadata.
                 enriched = {**sentiment_dict, **emotions_for_text(transcript_text, seg_texts)}
                 analysis.sentiment = enriched
+                lang = detect_text_language(transcript_text)
+                people = list(entities_dict.get("people") or [])
+                orgs = list(entities_dict.get("organizations") or [])
+                locs = list(entities_dict.get("locations") or [])
+                for p in extract_people(transcript_text, lang):
+                    if not any(str(existing).lower() == p.lower() for existing in people):
+                        people.append(p)
+                for o in extract_organizations(transcript_text):
+                    if not any(str(existing).lower() == o.lower() for existing in orgs):
+                        orgs.append(o)
+                for loc in extract_locations(transcript_text):
+                    if not any(str(existing).lower() == loc.lower() for existing in locs):
+                        locs.append(loc)
+                if audio_meta.get("has_metadata"):
+                    for field_key in ("artist", "album_artist", "composer"):
+                        val = (audio_meta.get(field_key) or "").strip()
+                        if val and not any(str(existing).lower() == val.lower() for existing in people):
+                            people.insert(0, val)
+                    pub = (audio_meta.get("publisher") or "").strip()
+                    if pub and not any(str(existing).lower() == pub.lower() for existing in orgs):
+                        orgs.append(pub)
+                entities_dict["people"] = people
+                entities_dict["organizations"] = orgs
+                entities_dict["locations"] = locs
+                entities_dict["audio_metadata"] = audio_meta
+                analysis.extracted_entities = entities_dict
                 db.flush()
             db.commit()
+
+    bilingual_insights = None
+    if isinstance(analysis.detailed_summary, dict):
+        bilingual_insights = analysis.detailed_summary.get("bilingual_insights")
 
     return AnalysisResponse(
         recording_id=recording_id,
@@ -74,6 +118,8 @@ def get_analysis(recording_id: UUID, db: DbSession) -> AnalysisResponse:
         extracted_entities=analysis.extracted_entities,
         action_items=analysis.action_items,
         decisions=analysis.decisions,
+        bilingual_insights=bilingual_insights,
+        audio_metadata=audio_meta,
     )
 
 
@@ -87,6 +133,7 @@ def export_analysis(
     if recording is None:
         raise NotFoundError("Recording not found.")
 
+    ensure_recording_repaired(db, recording)
     segments = TranscriptRepository(db).list_for_recording(recording_id)
     analysis = AnalysisRepository(db).get_for_recording(recording_id)
 

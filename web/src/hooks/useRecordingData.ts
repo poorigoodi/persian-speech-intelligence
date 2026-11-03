@@ -15,11 +15,13 @@ function errorMessage(err: unknown): string {
   return "Something went wrong.";
 }
 
+const DATA_SCHEMA_REV = 5;
+
 function useLoader<T>(key: string | null, load: (id: string) => Promise<T>): AsyncState<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [nonce, setNonce] = useState(0);
+  const [nonce, setNonce] = useState(DATA_SCHEMA_REV);
   const loadRef = useRef(load);
   loadRef.current = load;
 

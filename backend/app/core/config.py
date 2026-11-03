@@ -166,7 +166,10 @@ class Settings(BaseSettings):
             self.temp_dir,
             self.vector_index_dir,
         ):
-            path.mkdir(parents=True, exist_ok=True)
+            try:
+                path.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass
 
     def llm_effective_base_url(self) -> str:
         if self.llm_provider == "local":

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class TopicItem(BaseModel):
@@ -67,6 +67,24 @@ class ExtractedEntities(BaseModel):
     decisions: list[DecisionItem] = Field(default_factory=list)
     deadlines: list[str] = Field(default_factory=list)
     keywords: list[str] = Field(default_factory=list)
+    audio_metadata: dict[str, Any] | None = None
+
+    @field_validator("people", "organizations", "dates", "times", "locations", "deadlines", "keywords", mode="before")
+    @classmethod
+    def _normalize_string_list(cls, value: Any) -> list[str]:
+        if not value or not isinstance(value, list):
+            return []
+        normalized: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                cleaned = item.strip()
+                if cleaned and cleaned.lower() not in {"none", "null", "n/a", "نامشخص", "ندارد"} and cleaned not in normalized:
+                    normalized.append(cleaned)
+            elif isinstance(item, dict):
+                cand = str(item.get("name") or item.get("text") or item.get("description") or "").strip()
+                if cand and cand.lower() not in {"none", "null", "n/a", "نامشخص", "ندارد"} and cand not in normalized:
+                    normalized.append(cand)
+        return normalized
 
 
 class AnalysisResponse(BaseModel):
@@ -78,6 +96,8 @@ class AnalysisResponse(BaseModel):
     extracted_entities: ExtractedEntities | dict[str, Any] | None = None
     action_items: list[TaskItem] | list[dict[str, Any]] | None = None
     decisions: list[DecisionItem] | list[dict[str, Any]] | None = None
+    bilingual_insights: dict[str, Any] | None = None
+    audio_metadata: dict[str, Any] | None = None
 
 
 class ExportResponse(BaseModel):

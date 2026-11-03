@@ -10,6 +10,7 @@ from app.api.deps import DbSession, require_api_key
 from app.core.exceptions import NotFoundError
 from app.db.repositories import RecordingRepository, TranscriptRepository
 from app.schemas.transcript import TranscriptResponse, TranscriptSegmentOut
+from app.services.recording_repair import ensure_recording_repaired
 from app.utils.asr_correct import apply_asr_rules
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -21,15 +22,18 @@ def get_transcript(recording_id: UUID, db: DbSession) -> TranscriptResponse:
     if recording is None:
         raise NotFoundError("Recording not found.")
 
+    ensure_recording_repaired(db, recording)
     segments = TranscriptRepository(db).list_for_recording(recording_id)
+    is_persian = (recording.language or "fa").lower().startswith("fa")
     updated = False
-    for s in segments:
-        cleaned_orig = apply_asr_rules(s.original_text)
-        cleaned_norm = apply_asr_rules(s.normalized_text)
-        if cleaned_orig != s.original_text or cleaned_norm != s.normalized_text:
-            s.original_text = cleaned_orig
-            s.normalized_text = cleaned_norm
-            updated = True
+    if is_persian:
+        for s in segments:
+            cleaned_orig = apply_asr_rules(s.original_text)
+            cleaned_norm = apply_asr_rules(s.normalized_text)
+            if cleaned_orig != s.original_text or cleaned_norm != s.normalized_text:
+                s.original_text = cleaned_orig
+                s.normalized_text = cleaned_norm
+                updated = True
     if updated:
         db.commit()
 

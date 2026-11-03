@@ -30,14 +30,20 @@ class AnalysisRepository:
         extracted_entities: dict[str, Any] | None,
         action_items: list[Any] | None,
         decisions: list[Any] | None,
+        bilingual_insights: dict[str, Any] | None = None,
+        **_extra: Any,
     ) -> Analysis:
         analysis = self.get_for_recording(recording_id)
         if analysis is None:
             analysis = Analysis(recording_id=recording_id)
             self.db.add(analysis)
 
+        detailed_summary_dict = dict(detailed_summary or {})
+        if bilingual_insights and "bilingual_insights" not in detailed_summary_dict:
+            detailed_summary_dict["bilingual_insights"] = bilingual_insights
+
         analysis.short_summary = short_summary
-        analysis.detailed_summary = detailed_summary
+        analysis.detailed_summary = detailed_summary_dict
         analysis.topics = topics
         analysis.sentiment = sentiment
         analysis.extracted_entities = extracted_entities

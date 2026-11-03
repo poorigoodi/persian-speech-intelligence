@@ -25,6 +25,12 @@ from app.schemas.analysis import (
     TaskItem,
     TopicItem,
 )
+from app.services.persian_nlp_fallback import (
+    detect_text_language,
+    extract_locations,
+    extract_organizations,
+    extract_people,
+)
 from app.services.sentiment_service import SentimentService
 
 logger = get_logger(__name__)
@@ -88,6 +94,7 @@ class AnalysisPipeline:
         transcript: str,
         *,
         on_progress: ProgressCallback | None = None,
+        audio_metadata: dict[str, Any] | None = None,
     ) -> AnalysisBundle:
         await self._progress(on_progress, 72, "analyze_prepare")
 
@@ -123,6 +130,31 @@ class AnalysisPipeline:
         await self._progress(on_progress, 94, "analyze_finalize")
 
         entities = combined.extracted_entities
+        lang = detect_text_language(transcript)
+        for p in extract_people(transcript, lang):
+            if not any(p.lower() == existing.lower() for existing in entities.people):
+                entities.people.append(p)
+        for o in extract_organizations(transcript):
+            if not any(o.lower() == existing.lower() for existing in entities.organizations):
+                entities.organizations.append(o)
+        for loc in extract_locations(transcript):
+            if not any(loc.lower() == existing.lower() for existing in entities.locations):
+                entities.locations.append(loc)
+
+        meta = audio_metadata or {}
+        if meta.get("has_metadata"):
+            for person_field in ("artist", "album_artist", "composer"):
+                val = (meta.get(person_field) or "").strip()
+                if val and not any(val.lower() == existing.lower() for existing in entities.people):
+                    entities.people.insert(0, val)
+            pub = (meta.get("publisher") or "").strip()
+            if pub and not any(pub.lower() == existing.lower() for existing in entities.organizations):
+                entities.organizations.append(pub)
+            if meta.get("date") and meta["date"] not in entities.dates:
+                entities.dates.append(str(meta["date"]))
+        if meta:
+            entities.audio_metadata = meta
+
         action_items = list(entities.tasks)
         decisions = list(entities.decisions)
         detailed = combined.detailed_summary

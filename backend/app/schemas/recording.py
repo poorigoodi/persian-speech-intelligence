@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,6 +38,7 @@ class RecordingDetail(RecordingSummary):
     file_size_bytes: int | None = None
     sample_rate: int | None = None
     content_type: str | None = None
+    audio_metadata: dict[str, Any] | None = None
 
 
 class JobStatusResponse(BaseModel):

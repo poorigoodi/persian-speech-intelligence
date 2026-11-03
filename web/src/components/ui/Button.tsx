@@ -13,12 +13,12 @@ const SIZES: Record<Size, string> = {
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-violet-600 text-white shadow-[0_10px_30px_-12px_rgba(105,59,255,0.9)] hover:bg-[#7a4dff]",
+    "bg-violet-600 text-white shadow-[0_8px_24px_-10px_rgba(109,40,217,0.75)] hover:bg-violet-500",
   ghost:
     "border border-navy-600 bg-navy-800 text-ink hover:border-violet-900 hover:bg-navy-750",
-  subtle: "bg-white/5 text-mute2 hover:bg-white/10 hover:text-ink",
-  danger: "border border-rose-500/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20",
-  icon: "size-9 border border-navy-600 bg-navy-800 text-mute hover:border-violet-900 hover:text-ink",
+  subtle: "bg-navy-800/80 text-mute2 hover:bg-navy-800 hover:text-ink",
+  danger: "border border-danger/35 bg-danger/10 text-danger hover:bg-danger/20",
+  icon: "size-9 border border-navy-600 bg-navy-800 text-mute2 hover:border-violet-900 hover:text-ink",
 };
 
 export function buttonClass({
